@@ -17,6 +17,10 @@ export const router = createBrowserRouter([
         element: <DashboardView />,
       },
       {
+        path: 'dashboard',
+        element: <DashboardView />,
+      },
+      {
         path: 'transactions',
         element: <TransactionMonitorView />,
       },
@@ -38,9 +42,8 @@ export const router = createBrowserRouter([
       },
       {
         path: '*',
-        element: <Navigate to="/" replace />,
+        element: <Navigate to="/dashboard" replace />,
       },
     ],
   },
 ]);
-
