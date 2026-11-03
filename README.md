@@ -1,7 +1,7 @@
 # StreamShield: Real-Time UPI Fraud Detection & Financial Crime Intelligence
 
-> **Current Status**: **Phase 0 — Project Initialization**  
-> ⚠️ **Notice**: This project is actively under development. Application logic, models, and interfaces are being constructed according to the development roadmap.
+> **Current Status**: **Phase 1 — Full-Stack Project Foundation Established**  
+> ⚠️ **Notice**: This project is actively under development. Core application foundations (FastAPI async backend and Vite + React + Tailwind frontend) are established. Domain models and streaming pipelines will be introduced in subsequent phases.
 
 ---
 
@@ -45,27 +45,125 @@ By combining millisecond-level stream processing, graph-based network topology a
 
 ---
 
-## 🛠️ Planned Technology Stack
-
-StreamShield is designed using a modern, scalable, distributed architecture:
+## 🛠️ Technology Stack
 
 - **Frontend & Visualization**:
-  - React 19 / TypeScript
+  - React 18 / TypeScript
   - Vite (high-performance build tooling)
-  - Tailwind CSS & modern UI component frameworks
-  - Interactive Graph & Network Visualizations (e.g., Cytoscape.js / D3 / Canvas-based graph rendering)
+  - Tailwind CSS (customized human-designed color system)
+  - shadcn/ui design patterns
+  - React Router v6
+  - Recharts & Cytoscape.js
+  - Lucide React Icons
 - **Backend & APIs**:
   - Python 3.14+
   - FastAPI (asynchronous, high-performance API server)
-  - Pydantic v2 (data validation and serialization)
-- **Streaming & Data Infrastructure**:
+  - Uvicorn (ASGI web server)
+  - Pydantic v2 & Pydantic-Settings
+- **Streaming & Data Infrastructure (Upcoming Phases)**:
   - Event Streaming: Apache Kafka / Redpanda
-  - In-Memory Cache & Feature Store: Redis
+  - In-Memory Cache: Redis
   - Relational & Time-Series Storage: PostgreSQL / TimescaleDB
-  - Graph Engine: NetworkX / Neo4j / Graph database integrations
-- **Analytics & Machine Learning**:
-  - Scikit-learn, XGBoost, and Graph Neural / Network heuristic engines
-  - Explainability Toolkits (SHAP / feature-attribution representations)
+  - Graph Engine: Cytoscape.js + NetworkX / Neo4j
+
+---
+
+## 📁 Repository Structure
+
+```
+StreamShield/
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── __init__.py
+│   │   │   └── routes.py         # GET / and GET /health
+│   │   ├── core/
+│   │   │   ├── __init__.py
+│   │   │   └── config.py         # Pydantic settings & CORS config
+│   │   └── __init__.py
+│   ├── .env.example
+│   ├── main.py                   # FastAPI application entrypoint (main:app)
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/           # AppLayout, Sidebar, Header
+│   │   │   └── ui/               # Button, Card, Badge
+│   │   ├── lib/
+│   │   │   └── utils.ts          # clsx + twMerge utility
+│   │   ├── routes/
+│   │   │   └── index.tsx         # React Router route registry
+│   │   ├── views/                # Modular view placeholders
+│   │   │   ├── DashboardView.tsx
+│   │   │   ├── TransactionMonitorView.tsx
+│   │   │   ├── MoneyTrailView.tsx
+│   │   │   ├── FraudLabView.tsx
+│   │   │   ├── InvestigationsView.tsx
+│   │   │   └── ModelPerformanceView.tsx
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   └── main.tsx
+│   ├── .env.example
+│   ├── index.html
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   └── vite.config.ts
+├── .env.example                  # Root environment template
+├── .gitignore                    # Universal project ignore rules
+└── README.md
+```
+
+---
+
+## ⚡ Quickstart & Local Setup
+
+### Prerequisites
+- **Node.js**: v18+ (verified on Node v24.16.0, npm 11.13.0)
+- **Python**: 3.10+ (verified on Python 3.14.5)
+- **Git**
+
+### 1. Backend Setup (FastAPI)
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+# Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+# Linux / macOS:
+# source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start backend server
+python -m uvicorn main:app --reload
+```
+
+- API Base URL: `http://localhost:8000`
+- API Health Check: `http://localhost:8000/health`
+- Interactive OpenAPI Docs: `http://localhost:8000/docs`
+
+### 2. Frontend Setup (React + Vite)
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start Vite development server
+npm run dev
+```
+
+- Web Console: `http://localhost:5173`
 
 ---
 
@@ -74,12 +172,12 @@ StreamShield is designed using a modern, scalable, distributed architecture:
 - [x] **Phase 0: Project Setup & Repository Initialization**
   - Git repository setup, default branch configuration, remote integration.
   - Comprehensive `.gitignore`, placeholder `.env.example`, and baseline documentation.
-- [ ] **Phase 1: Architecture Design & Data Contracts**
-  - UPI transaction schema definition, event models, and data contract specifications.
-  - Pipeline topology and system architecture validation.
+- [x] **Phase 1: Full-Stack Project Foundation**
+  - FastAPI asynchronous backend with `/` and `/health` endpoints and CORS middleware.
+  - Vite + React + TypeScript + Tailwind CSS frontend with modular layout and React Router navigation.
 - [ ] **Phase 2: Streaming Ingestion & Real-Time Engine**
-  - FastAPI streaming endpoint and Kafka event pipeline integration.
-  - In-memory state tracking, sliding window velocity counters, and rule-based evaluation.
+  - UPI transaction schema definition, event models, and data contract specifications.
+  - Streaming endpoint and Kafka / Redis event pipeline integration.
 - [ ] **Phase 3: Graph Intelligence & Mule Network Tracing**
   - Graph database ingestion, multi-hop path tracing, and mule cluster scoring algorithms.
 - [ ] **Phase 4: Fraud DNA & Attack Simulator**
