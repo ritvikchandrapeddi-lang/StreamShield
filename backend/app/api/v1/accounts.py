@@ -109,3 +109,4 @@ def create_account(payload: AccountCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_acc)
     return AccountResponse.model_validate(new_acc)
+

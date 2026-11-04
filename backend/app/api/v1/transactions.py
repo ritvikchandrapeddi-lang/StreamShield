@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.db.session import get_db
 from app.models.transaction import TransactionModel
+from app.engine.pipeline import fraud_pipeline
 from app.schemas.transaction import (
     TransactionCreate,
     TransactionResponse,
@@ -139,17 +140,25 @@ def update_transaction_decision(
 )
 def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)):
     tx_id = payload.id or f"TXN-{uuid.uuid4().hex[:8].upper()}-UPI"
+    tx_dict = payload.model_dump()
+    tx_dict["id"] = tx_id
 
-    # Auto-derive risk level if not consistent
-    risk_level = payload.risk_level
-    if payload.risk_score >= 90:
-        risk_level = "critical"
-    elif payload.risk_score >= 70:
-        risk_level = "high"
-    elif payload.risk_score >= 40:
-        risk_level = "medium"
+    # If caller did not provide pre-computed risk score/factors, run through real-time ML pipeline
+    if payload.risk_score == 0 and not payload.risk_factors:
+        scored = fraud_pipeline.process_transaction(tx_dict, db=db, create_alert_if_flagged=True)
+        risk_score = scored["risk_score"]
+        risk_level = scored["risk_level"]
+        decision = scored["decision"]
+        risk_factors = scored["risk_factors"]
+        latency_ms = scored["latency_ms"]
+        mule_prob = scored["mule_probability"]
     else:
-        risk_level = "low"
+        risk_score = payload.risk_score
+        risk_level = payload.risk_level
+        decision = payload.decision
+        risk_factors = payload.risk_factors
+        latency_ms = payload.latency_ms or 5.2
+        mule_prob = payload.mule_probability
 
     new_tx = TransactionModel(
         id=tx_id,
@@ -165,13 +174,13 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
         receiver_bank=payload.receiver_bank,
         amount=payload.amount,
         timestamp=datetime.now(timezone.utc),
-        risk_score=payload.risk_score,
+        risk_score=risk_score,
         risk_level=risk_level,
-        decision=payload.decision,
-        risk_factors=payload.risk_factors,
-        latency_ms=payload.latency_ms or 5.2,
+        decision=decision,
+        risk_factors=risk_factors,
+        latency_ms=latency_ms,
         channel=payload.channel,
-        mule_probability=payload.mule_probability,
+        mule_probability=mule_prob,
         is_simulated=payload.is_simulated,
     )
 

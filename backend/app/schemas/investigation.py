@@ -87,3 +87,4 @@ class CaseResponse(CaseBase):
 class CaseListResponse(BaseModel):
     cases: List[CaseResponse]
     total: int
+

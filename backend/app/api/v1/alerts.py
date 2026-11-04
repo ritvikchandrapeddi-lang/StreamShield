@@ -94,3 +94,4 @@ def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_alert)
     return AlertResponse.model_validate(new_alert)
+

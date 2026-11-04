@@ -550,3 +550,4 @@ def force_reseed(db: Session) -> None:
     db.query(AccountModel).delete()
     db.commit()
     seed_data_if_empty(db)
+

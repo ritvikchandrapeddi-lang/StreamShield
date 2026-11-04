@@ -63,3 +63,4 @@ class CaseEvidenceModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     case = relationship("CaseModel", back_populates="evidence")
+

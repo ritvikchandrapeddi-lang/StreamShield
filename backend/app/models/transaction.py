@@ -28,3 +28,4 @@ class TransactionModel(Base):
     channel = Column(String(16), default="P2P", nullable=False)
     mule_probability = Column(Float, default=0.0)
     is_simulated = Column(Boolean, default=True, nullable=False)
+

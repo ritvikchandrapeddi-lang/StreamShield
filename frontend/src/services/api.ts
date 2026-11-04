@@ -228,4 +228,81 @@ export const apiService = {
       return false;
     }
   },
+
+  /**
+   * Real-Time ML Fraud Scoring Engine
+   */
+  async scoreTransaction(payload: {
+    amount: number;
+    sender_vpa: string;
+    sender_name?: string;
+    sender_bank?: string;
+    sender_city?: string;
+    sender_device_id?: string;
+    sender_account_age_days?: number;
+    receiver_vpa: string;
+    receiver_name?: string;
+    receiver_bank?: string;
+    channel?: string;
+    mule_probability?: number;
+  }) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fraud/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getModelInfo() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fraud/model-info`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getFraudEvaluation() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fraud/evaluate`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async retrainModel(nSamples: number = 5000) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fraud/train`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ n_samples: nSamples }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async generateSyntheticBatch(n: number = 20, fraudRatio: number = 0.3) {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/fraud/synthetic-batch?n=${n}&fraud_ratio=${fraudRatio}`
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
 };
+

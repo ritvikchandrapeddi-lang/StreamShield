@@ -15,3 +15,4 @@ class AlertModel(Base):
     read = Column(Boolean, default=False, nullable=False, index=True)
     is_simulated = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+

@@ -1,7 +1,7 @@
 # StreamShield: Real-Time UPI Fraud Detection & Financial Crime Intelligence
 
-> **Current Status**: **Phase 4 — Backend + Database Foundation Implemented**  
-> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console and FastAPI REST API backend—including SQLAlchemy database integration (PostgreSQL with zero-dependency local SQLite fallback), transaction monitoring, live fraud alerts, case investigations docket, and OpenAPI Swagger documentation—are operational with high-fidelity synthetic UPI demonstration fixtures.
+> **Current Status**: **Phase 5 — Fraud Detection & Transaction Engine Implemented**  
+> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console, FastAPI REST API backend, SQLAlchemy database integration, and real-time XGBoost ML fraud detection engine—including behavioral feature extraction, explainable SHAP justifications, automated risk decisions (APPROVE/REVIEW/BLOCK), and empirical model evaluation—are fully operational with synthetic UPI demonstration fixtures.
 
 ---
 
@@ -200,9 +200,15 @@ npm run dev
   - Frontend API service client (`frontend/src/services/api.ts`) connecting web console state to backend API with graceful offline fallback.
   - Interactive OpenAPI Swagger documentation at `/docs` and ReDoc at `/redoc`.
   - Comprehensive automated integration test suite (`backend/tests/test_api.py`) with 10 passing tests.
-- [ ] **Phase 5: Streaming Ingestion & Real-Time Engine (Kafka/Redis)**
-  - UPI transaction schema definition, event models, and data contract specifications.
-  - Streaming endpoint and Kafka / Redis event pipeline integration.
+- [x] **Phase 5: Fraud Detection & Transaction Engine**
+  - Real-time transaction risk scoring engine powered by XGBoost with Scikit-Learn GradientBoosting fallback.
+  - 18 behavioral and topological features covering amount limits, structuring near ₹50k, nocturnal circadian windows, account seasoning, and velocity counters.
+  - Automated risk tiers and decisions: APPROVE (< 70), REVIEW (70 - 84), and BLOCK (>= 85).
+  - Sub-15ms transaction scoring pipeline with explainable SHAP-style reasons for every suspicious decision.
+  - Automated alert emission to notification docket for quarantined and flagged transactions.
+  - Realistic synthetic UPI transaction dataset generator for training, evaluation, and simulator feeding.
+  - Dedicated `/api/v1/fraud/*` endpoints for scoring, model metadata, empirical evaluation reports, retraining, and batch generation.
+  - 14 automated integration tests validating ML inference, explainability, latency, and endpoints.
 - [ ] **Phase 6: Graph Intelligence & Mule Network Tracing**
   - Graph database ingestion, multi-hop path tracing, and mule cluster scoring algorithms.
 - [ ] **Phase 7: Fraud DNA & Attack Simulator Backend Integration**

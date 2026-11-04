@@ -264,3 +264,4 @@ def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_case)
     return CaseResponse.model_validate(new_case)
+

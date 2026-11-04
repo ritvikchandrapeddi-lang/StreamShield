@@ -64,3 +64,4 @@ def init_db() -> None:
             seed_data_if_empty(db)
         finally:
             db.close()
+

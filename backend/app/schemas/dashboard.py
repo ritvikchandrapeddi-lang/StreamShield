@@ -21,3 +21,4 @@ class DashboardStatsResponse(BaseModel):
     recent_alerts: List[AlertResponse]
     recent_high_risk_transactions: List[TransactionResponse]
     stream_telemetry: Dict[str, Any]
+

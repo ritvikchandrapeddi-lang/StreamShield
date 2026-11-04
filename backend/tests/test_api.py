@@ -219,3 +219,100 @@ async def test_seed_reset(client: httpx.AsyncClient):
     response = await client.post("/api/v1/seed/reset")
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+
+
+@pytest.mark.anyio
+async def test_fraud_score_endpoint(client: httpx.AsyncClient):
+    # 1. Test high-risk smurfing / structured payment
+    high_risk_req = {
+        "amount": 49999.0,
+        "sender_vpa": "burner_mule@airtel",
+        "sender_account_age_days": 4,
+        "sender_device_id": "DEV-MOCK-AUTO-88",
+        "receiver_vpa": "crypto_sink@kotak",
+        "channel": "P2P",
+        "mule_probability": 0.95,
+    }
+    score_res = await client.post("/api/v1/fraud/score", json=high_risk_req)
+    assert score_res.status_code == 200
+    scored = score_res.json()
+    assert scored["risk_score"] >= 70
+    assert scored["decision"] in ["review", "blocked"]
+    assert len(scored["risk_factors"]) >= 1
+    assert scored["latency_ms"] < 100.0  # Fast inference
+
+    # 2. Test low-risk everyday transaction
+    low_risk_req = {
+        "amount": 250.0,
+        "sender_vpa": "regular_user@okhdfc",
+        "sender_account_age_days": 850,
+        "sender_device_id": "DEV-GENUINE-PHONE",
+        "receiver_vpa": "swiggy@icici",
+        "channel": "P2M",
+        "mule_probability": 0.01,
+    }
+    low_score_res = await client.post("/api/v1/fraud/score", json=low_risk_req)
+    assert low_score_res.status_code == 200
+    low_scored = low_score_res.json()
+    assert low_scored["risk_score"] < 50
+    assert low_scored["decision"] == "approved"
+
+
+@pytest.mark.anyio
+async def test_fraud_model_info_and_evaluate(client: httpx.AsyncClient):
+    # 1. Model info
+    info_res = await client.get("/api/v1/fraud/model-info")
+    assert info_res.status_code == 200
+    info = info_res.json()
+    assert "model_architecture" in info
+    assert "metrics" in info
+    assert "feature_importances" in info
+    assert len(info["feature_importances"]) > 5
+
+    # 2. Evaluation report
+    eval_res = await client.get("/api/v1/fraud/evaluate")
+    assert eval_res.status_code == 200
+    eval_data = eval_res.json()
+    metrics = eval_data["evaluation"]["metrics"]
+    assert metrics["precision"] > 0
+    assert metrics["recall"] > 0
+    assert metrics["f1_score"] > 0
+    assert "confusion_matrix" in metrics
+
+
+@pytest.mark.anyio
+async def test_fraud_synthetic_batch_generation(client: httpx.AsyncClient):
+    batch_res = await client.get("/api/v1/fraud/synthetic-batch?n=15&fraud_ratio=0.3")
+    assert batch_res.status_code == 200
+    batch_data = batch_res.json()
+    assert batch_data["batch_size"] == 15
+    assert len(batch_data["transactions"]) == 15
+
+
+@pytest.mark.anyio
+async def test_create_transaction_with_realtime_ml_scoring(client: httpx.AsyncClient):
+    # Omit risk_score/risk_factors to trigger automatic XGBoost scoring pipeline
+    tx_payload = {
+        "sender_vpa": "stealth_mule@idbi",
+        "sender_name": "Stealth Mule Account",
+        "sender_bank": "IDBI Bank",
+        "sender_city": "Nuh, HR",
+        "sender_device_id": "DEV-MOCK-ROOT-99",
+        "sender_account_age_days": 3,
+        "receiver_vpa": "crypto_cashout@kotak",
+        "receiver_name": "Fast OTC Cashout",
+        "receiver_bank": "Kotak Mahindra Bank",
+        "amount": 92000.0,
+        "channel": "P2P",
+        "mule_probability": 0.95,
+        "risk_score": 0,
+        "risk_factors": [],
+    }
+    tx_res = await client.post("/api/v1/transactions", json=tx_payload)
+    assert tx_res.status_code == 201
+    created = tx_res.json()
+    # Verified that real-time scoring ran
+    assert created["risk_score"] > 50
+    assert created["decision"] in ["review", "blocked"]
+    assert len(created["risk_factors"]) >= 1
+    assert created["latency_ms"] > 0
