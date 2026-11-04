@@ -304,5 +304,78 @@ export const apiService = {
       return null;
     }
   },
+
+  /**
+   * Graph Intelligence & Mule-Ring Detection API
+   */
+  async getGraphOverview() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/graph/overview`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async exploreAccountNetwork(vpa: string, depth: number = 2) {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/graph/account/${encodeURIComponent(vpa)}?depth=${depth}`
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getMuleAccounts(minScore: number = 60) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/graph/mules?min_score=${minScore}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getFraudRings() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/graph/rings`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async traceMoneyTrail(payload: {
+    source_vpa: string;
+    max_hops?: number;
+    min_amount?: number;
+  }) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/graph/trace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async syncGraph() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/graph/sync`, { method: 'POST' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
 };
 

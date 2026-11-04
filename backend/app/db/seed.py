@@ -509,12 +509,68 @@ def seed_data_if_empty(db: Session) -> bool:
     logger.info("Seeding database with realistic synthetic demonstration data...")
 
     # 1. Accounts
+    seeded_vpas = set()
     for acc in INITIAL_ACCOUNTS:
         db.add(AccountModel(**acc))
+        seeded_vpas.add(acc["vpa"])
+
+    # Seed additional graph intelligence network accounts
+    from app.graph.builder import SYNTHETIC_ACCOUNTS, SYNTHETIC_TRANSACTIONS
+    for acc in SYNTHETIC_ACCOUNTS:
+        if acc["vpa"] not in seeded_vpas:
+            db.add(AccountModel(
+                id=acc["id"],
+                vpa=acc["vpa"],
+                owner_name=acc["owner_name"],
+                role=acc["role"],
+                risk_score=acc["risk_score"],
+                bank_name=acc["bank_name"],
+                ifsc=acc.get("ifsc", "IFSC0001001"),
+                city=acc.get("city", "Mumbai, MH"),
+                incoming_count=acc.get("incoming_count", 1),
+                outgoing_count=acc.get("outgoing_count", 1),
+                total_incoming=acc.get("total_incoming", 0.0),
+                total_outgoing=acc.get("total_outgoing", 0.0),
+                account_age_days=acc.get("account_age_days", 30),
+                status=acc.get("status", "active"),
+                device_fingerprint=acc.get("device_fingerprint", "DEV-SYNTH"),
+                is_simulated=True,
+            ))
+            seeded_vpas.add(acc["vpa"])
 
     # 2. Transactions
+    seeded_tx_ids = set()
     for tx in INITIAL_TRANSACTIONS:
         db.add(TransactionModel(**tx))
+        seeded_tx_ids.add(tx["id"])
+
+    # Seed additional graph intelligence network transactions
+    for tx in SYNTHETIC_TRANSACTIONS:
+        if tx["id"] not in seeded_tx_ids:
+            try:
+                tx_ts = datetime.fromisoformat(tx["timestamp"].replace("Z", "+00:00"))
+            except Exception:
+                tx_ts = datetime.now(timezone.utc)
+            db.add(TransactionModel(
+                id=tx["id"],
+                sender_vpa=tx["sender_vpa"],
+                sender_name=tx["sender_vpa"].split("@")[0].title(),
+                sender_bank="Partner Bank",
+                receiver_vpa=tx["receiver_vpa"],
+                receiver_name=tx["receiver_vpa"].split("@")[0].title(),
+                receiver_bank="Beneficiary Bank",
+                amount=tx["amount"],
+                timestamp=tx_ts,
+                risk_score=tx["risk_score"],
+                risk_level="critical" if tx["risk_score"] >= 85 else "high" if tx["risk_score"] >= 70 else "low",
+                decision=tx["decision"],
+                risk_factors=[f"Graph intelligence risk trigger: {tx.get('status', 'flagged')}"],
+                latency_ms=tx.get("latency_ms", 5.0),
+                channel=tx.get("channel", "P2P"),
+                mule_probability=round(tx["risk_score"] / 100.0, 2),
+                is_simulated=True,
+            ))
+            seeded_tx_ids.add(tx["id"])
 
     # 3. Alerts
     for alt in INITIAL_ALERTS:

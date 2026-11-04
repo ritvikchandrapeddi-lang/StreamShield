@@ -139,3 +139,4 @@ class RealTimeFraudPipeline:
 
 # Global singleton pipeline instance
 fraud_pipeline = RealTimeFraudPipeline()
+

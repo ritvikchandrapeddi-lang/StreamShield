@@ -113,3 +113,4 @@ def generate_batch(
         "is_simulated": True,
         "transactions": records,
     }
+

@@ -1,7 +1,7 @@
 # StreamShield: Real-Time UPI Fraud Detection & Financial Crime Intelligence
 
-> **Current Status**: **Phase 5 — Fraud Detection & Transaction Engine Implemented**  
-> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console, FastAPI REST API backend, SQLAlchemy database integration, and real-time XGBoost ML fraud detection engine—including behavioral feature extraction, explainable SHAP justifications, automated risk decisions (APPROVE/REVIEW/BLOCK), and empirical model evaluation—are fully operational with synthetic UPI demonstration fixtures.
+> **Current Status**: **Phase 6 — Graph Intelligence & Mule-Ring Detection Implemented**  
+> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console, FastAPI REST API backend, SQLAlchemy database integration, real-time XGBoost ML fraud detection engine, and NetworkX-powered Graph Intelligence & Mule-Ring Detection engine—including directed transaction graph analytics, circular money movement cycle detection, fan-in/fan-out motif detection, multi-hop downstream path tracing, composite mule scoring, and syndicate cluster classification—are fully operational with synthetic UPI demonstration fixtures.
 
 ---
 
@@ -209,8 +209,15 @@ npm run dev
   - Realistic synthetic UPI transaction dataset generator for training, evaluation, and simulator feeding.
   - Dedicated `/api/v1/fraud/*` endpoints for scoring, model metadata, empirical evaluation reports, retraining, and batch generation.
   - 14 automated integration tests validating ML inference, explainability, latency, and endpoints.
-- [ ] **Phase 6: Graph Intelligence & Mule Network Tracing**
-  - Graph database ingestion, multi-hop path tracing, and mule cluster scoring algorithms.
+- [x] **Phase 6: Graph Intelligence & Mule-Ring Detection**
+  - Directed NetworkX transaction graph representing accounts as nodes and weighted, timestamped transactions as directed edges.
+  - Graph-based pattern recognition detecting circular money movement (cycles), fan-in funneling, fan-out smurfing dispersal, and multi-hop layering.
+  - Multi-hop downstream money-trail path tracing identifying intermediate hops and terminal consolidation / cashout vaults.
+  - Composite mule-account scoring utilizing degree disparity, flow pass-through velocity, and neighbor contamination with forensic explanations.
+  - Organized fraud ring clustering and threat scoring across distinct typologies (Syndicate Falcon, Smurfing Cascade, Circular Wash Loops).
+  - Dedicated `/api/v1/graph/*` REST endpoints (`/overview`, `/account/{vpa}`, `/explore`, `/mules`, `/rings`, `/trace`, `/sync`).
+  - Cytoscape.js ready JSON export format directly powering interactive frontend graph visualizations.
+  - Comprehensive automated test suite with 16 graph tests and 30 total backend integration tests passing.
 - [ ] **Phase 7: Fraud DNA & Attack Simulator Backend Integration**
   - Typology library, synthetic transaction generator, and attack vector stress testbed.
 - [ ] **Phase 8: End-to-End Hardening, Verification & Deployment**
