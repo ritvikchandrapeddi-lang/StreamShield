@@ -10,26 +10,47 @@ import {
   Shield,
   Zap,
 } from 'lucide-react';
-
-interface NavItem {
-  name: string;
-  to: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
-  badgeColor?: string;
-}
-
-const navItems: NavItem[] = [
-  { name: 'Overview Dashboard', to: '/dashboard', icon: LayoutDashboard },
-  { name: 'Transaction Monitor', to: '/transactions', icon: Radio, badge: 'Live', badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  { name: 'Money Trail Explorer', to: '/money-trail', icon: Network, badge: 'Key Feature', badgeColor: 'bg-coral-500/20 text-coral-400 border-coral-500/30' },
-  { name: 'Fraud Intelligence Lab', to: '/fraud-lab', icon: FlaskConical, badge: 'Sim', badgeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-  { name: 'Investigations', to: '/investigations', icon: Briefcase, badge: '4 Cases', badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-  { name: 'Model Performance', to: '/model-performance', icon: LineChart },
-];
+import { useStreamShield } from '../../context/StreamShieldContext';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
+  const { cases, transactions, isSimulatingGlobalStream } = useStreamShield();
+
+  const activeCasesCount = cases.filter((c) => c.status !== 'resolved').length;
+  const highRiskCount = transactions.filter((t) => t.riskScore >= 70).length;
+
+  const navItems = [
+    { name: 'Overview Dashboard', to: '/dashboard', icon: LayoutDashboard },
+    {
+      name: 'Transaction Monitor',
+      to: '/transactions',
+      icon: Radio,
+      badge: `${highRiskCount} Alerts`,
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    },
+    {
+      name: 'Money Trail Explorer',
+      to: '/money-trail',
+      icon: Network,
+      badge: 'Signature',
+      badgeColor: 'bg-coral-500/20 text-coral-400 border-coral-500/30',
+    },
+    {
+      name: 'Fraud Intelligence Lab',
+      to: '/fraud-lab',
+      icon: FlaskConical,
+      badge: 'Sim',
+      badgeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    },
+    {
+      name: 'Investigations',
+      to: '/investigations',
+      icon: Briefcase,
+      badge: `${activeCasesCount} Cases`,
+      badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    },
+    { name: 'Model Performance', to: '/model-performance', icon: LineChart },
+  ];
 
   return (
     <aside className="w-64 bg-navy-950 text-white flex flex-col border-r border-navy-900 shrink-0 select-none">
@@ -56,7 +77,9 @@ export const Sidebar: React.FC = () => {
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isDashboardActive = (item.to === '/dashboard') && (location.pathname === '/' || location.pathname === '/dashboard');
+          const isDashboardActive =
+            item.to === '/dashboard' &&
+            (location.pathname === '/' || location.pathname === '/dashboard');
           const isCurrentActive = isDashboardActive || location.pathname === item.to;
 
           return (
@@ -70,7 +93,11 @@ export const Sidebar: React.FC = () => {
               }`}
             >
               <div className="flex items-center gap-3">
-                <Icon className={`w-4 h-4 shrink-0 ${isCurrentActive ? 'text-coral-400' : 'text-navy-400'}`} />
+                <Icon
+                  className={`w-4 h-4 shrink-0 ${
+                    isCurrentActive ? 'text-coral-400' : 'text-navy-400'
+                  }`}
+                />
                 <span>{item.name}</span>
               </div>
               {item.badge && (
@@ -96,14 +123,18 @@ export const Sidebar: React.FC = () => {
               Stream Pipeline
             </span>
             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Active
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isSimulatingGlobalStream ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              {isSimulatingGlobalStream ? 'Active' : 'Paused'}
             </span>
           </div>
           <div className="text-[11px] text-navy-400">
             <div className="flex justify-between">
-              <span>Sim Ingestion:</span>
-              <span className="font-mono text-navy-200">2,410 TPS</span>
+              <span>Monitored Buffer:</span>
+              <span className="font-mono text-navy-200">{transactions.length} Events</span>
             </div>
             <div className="flex justify-between mt-0.5">
               <span>Latency p99:</span>

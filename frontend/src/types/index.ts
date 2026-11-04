@@ -123,3 +123,30 @@ export interface SimulationScenario {
   keyRuleTriggers: string[];
 }
 
+export interface ToastMessage {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'success' | 'warning' | 'info' | 'error';
+}
+
+export interface AlertItem {
+  id: string;
+  title: string;
+  vpa: string;
+  time: string;
+  severity: RiskLevel;
+  txId?: string;
+  caseId?: string;
+  read?: boolean;
+}
+
+export interface OfficerProfile {
+  id: string;
+  name: string;
+  title: string;
+  badgeNumber: string;
+  cell: string;
+  department: string;
+}
+

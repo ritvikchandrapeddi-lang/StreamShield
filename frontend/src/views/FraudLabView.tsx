@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import cytoscape, { Core } from 'cytoscape';
 import {
   FlaskConical,
   Play,
@@ -7,6 +8,8 @@ import {
   Activity,
   Sliders,
   Cpu,
+  GitFork,
+  Radio,
 } from 'lucide-react';
 import { mockSimulationScenarios, formatINR } from '../data/mockData';
 import { SimulationScenario } from '../types';
@@ -20,6 +23,7 @@ interface SimulatedEvent {
   riskScore: number;
   flagged: boolean;
   time: string;
+  ruleFired?: string;
 }
 
 export const FraudLabView: React.FC = () => {
@@ -43,6 +47,177 @@ export const FraudLabView: React.FC = () => {
   const [simulatedStream, setSimulatedStream] = useState<SimulatedEvent[]>([]);
   const [resultsReady, setResultsReady] = useState<boolean>(false);
 
+  // Mini Cytoscape Canvas for scenario topology preview
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<Core | null>(null);
+
+  // Helper to build scenario-specific topology elements
+  const generateScenarioGraphElements = useCallback((scenarioId: string, nodeCount: number) => {
+    const nodes: cytoscape.ElementDefinition[] = [];
+    const edges: cytoscape.ElementDefinition[] = [];
+
+    if (scenarioId === 'funnel-attack') {
+      // Multiple victims funneling to one collector, then to exit
+      nodes.push({ data: { id: 'collector', label: 'Aggregator\n(Collector)', role: 'mule', flagged: true } });
+      nodes.push({ data: { id: 'exit', label: 'Cashout\nTerminal', role: 'terminal', flagged: true } });
+      edges.push({ data: { id: 'e-col-exit', source: 'collector', target: 'exit', label: '₹4,50,000' } });
+
+      const victims = Math.min(nodeCount, 8);
+      for (let i = 1; i <= victims; i++) {
+        const id = `victim-${i}`;
+        nodes.push({ data: { id, label: `Victim ${i}`, role: 'victim', flagged: false } });
+        edges.push({ data: { id: `e-v-${i}`, source: id, target: 'collector', label: '₹60,000' } });
+      }
+    } else if (scenarioId === 'smurfing-split') {
+      // 1 origin splitting into multiple small mules
+      nodes.push({ data: { id: 'origin', label: 'Compromised\nSource', role: 'source', flagged: true } });
+      const mules = Math.min(nodeCount, 8);
+      for (let i = 1; i <= mules; i++) {
+        const id = `smurf-${i}`;
+        nodes.push({ data: { id, label: `Smurf ${i}\n₹49k`, role: 'mule', flagged: true } });
+        edges.push({ data: { id: `e-s-${i}`, source: 'origin', target: id, label: '₹49,500' } });
+      }
+    } else if (scenarioId === 'circular-transfers') {
+      // Loop cycle A -> B -> C -> D -> A
+      const count = Math.min(Math.max(nodeCount, 3), 6);
+      for (let i = 1; i <= count; i++) {
+        const id = `ring-${i}`;
+        nodes.push({ data: { id, label: `Shell ${String.fromCharCode(64 + i)}`, role: 'mule', flagged: true } });
+      }
+      for (let i = 1; i <= count; i++) {
+        const next = i === count ? 1 : i + 1;
+        edges.push({ data: { id: `e-r-${i}`, source: `ring-${i}`, target: `ring-${next}`, label: '₹75,000' } });
+      }
+    } else if (scenarioId === 'layering-intermediates') {
+      // 3-tier cascade
+      nodes.push({ data: { id: 'l-src', label: 'Origin', role: 'source', flagged: true } });
+      nodes.push({ data: { id: 'l-m1', label: 'Tier-1 A', role: 'mule', flagged: true } });
+      nodes.push({ data: { id: 'l-m2', label: 'Tier-1 B', role: 'mule', flagged: true } });
+      nodes.push({ data: { id: 'l-i1', label: 'Wash A', role: 'inter', flagged: true } });
+      nodes.push({ data: { id: 'l-i2', label: 'Wash B', role: 'inter', flagged: true } });
+      nodes.push({ data: { id: 'l-dest', label: 'Offshore', role: 'terminal', flagged: true } });
+
+      edges.push({ data: { id: 'e-l1', source: 'l-src', target: 'l-m1', label: '₹1.8L' } });
+      edges.push({ data: { id: 'e-l2', source: 'l-src', target: 'l-m2', label: '₹1.5L' } });
+      edges.push({ data: { id: 'e-l3', source: 'l-m1', target: 'l-i1', label: '₹1.7L' } });
+      edges.push({ data: { id: 'e-l4', source: 'l-m2', target: 'l-i2', label: '₹1.4L' } });
+      edges.push({ data: { id: 'e-l5', source: 'l-i1', target: 'l-dest', label: '₹1.65L' } });
+      edges.push({ data: { id: 'e-l6', source: 'l-i2', target: 'l-dest', label: '₹1.38L' } });
+    } else {
+      // Coordinated mule cluster or adaptive pattern
+      const count = Math.min(nodeCount, 8);
+      for (let i = 1; i <= count; i++) {
+        const id = `coord-${i}`;
+        nodes.push({ data: { id, label: `Bot Node ${i}`, role: i <= 2 ? 'source' : 'mule', flagged: true } });
+      }
+      for (let i = 1; i < count; i++) {
+        edges.push({ data: { id: `e-c-${i}`, source: `coord-${i}`, target: `coord-${i + 1}`, label: '₹40k' } });
+      }
+      if (count > 3) {
+        edges.push({ data: { id: 'e-cross-1', source: 'coord-1', target: `coord-${count}`, label: '₹85k' } });
+      }
+    }
+
+    return [...nodes, ...edges];
+  }, []);
+
+  // Initialize/Update Scenario Topology Cytoscape instance
+  useEffect(() => {
+    if (!graphContainerRef.current) return;
+
+    if (cyRef.current) {
+      cyRef.current.destroy();
+    }
+
+    const elements = generateScenarioGraphElements(selectedScenario.id, intermediaries);
+
+    const cy = cytoscape({
+      container: graphContainerRef.current,
+      elements,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'background-color': '#1E293B',
+            label: 'data(label)',
+            color: '#0F172A',
+            'font-size': '10px',
+            'font-family': 'JetBrains Mono, monospace',
+            'font-weight': 600,
+            'text-valign': 'bottom',
+            'text-margin-y': 5,
+            'text-wrap': 'wrap',
+            width: 38,
+            height: 38,
+            'border-width': 2,
+            'border-color': '#FFFFFF',
+          },
+        },
+        {
+          selector: 'node[role = "victim"]',
+          style: { 'background-color': '#0284C7', shape: 'ellipse' },
+        },
+        {
+          selector: 'node[role = "source"]',
+          style: { 'background-color': '#DC2626', shape: 'ellipse', 'border-width': 3, 'border-color': '#FCA5A5' },
+        },
+        {
+          selector: 'node[role = "mule"]',
+          style: { 'background-color': '#EA580C', shape: 'round-rectangle' },
+        },
+        {
+          selector: 'node[role = "inter"]',
+          style: { 'background-color': '#334155', shape: 'ellipse' },
+        },
+        {
+          selector: 'node[role = "terminal"]',
+          style: { 'background-color': '#7C3AED', shape: 'diamond', width: 44, height: 44, 'border-width': 3, 'border-color': '#DDD6FE' },
+        },
+        {
+          selector: 'edge',
+          style: {
+            width: 2,
+            'line-color': '#CBD5E1',
+            'target-arrow-color': '#94A3B8',
+            'target-arrow-shape': 'triangle',
+            'curve-style': 'bezier',
+            label: 'data(label)',
+            'font-size': '9px',
+            'font-family': 'JetBrains Mono, monospace',
+            color: '#475569',
+            'text-background-opacity': 0.9,
+            'text-background-color': '#FFFFFF',
+            'text-background-padding': '2px',
+          },
+        },
+        {
+          selector: '.sim-flagged',
+          style: {
+            'border-color': '#DC2626',
+            'border-width': 4,
+            'line-color': '#DC2626',
+            'target-arrow-color': '#DC2626',
+          },
+        },
+      ],
+      layout: {
+        name: selectedScenario.id === 'circular-transfers' ? 'circle' : 'breadthfirst',
+        directed: true,
+        padding: 30,
+        animate: true,
+      },
+      userZoomingEnabled: false,
+      userPanningEnabled: true,
+      boxSelectionEnabled: false,
+    });
+
+    cyRef.current = cy;
+
+    return () => {
+      cy.destroy();
+    };
+  }, [selectedScenario, intermediaries, generateScenarioGraphElements]);
+
   // Update parameters when scenario changes
   const handleSelectScenario = (sc: SimulationScenario) => {
     setSelectedScenario(sc);
@@ -65,11 +240,11 @@ export const FraudLabView: React.FC = () => {
     setSimulatedStream([]);
 
     const phases = [
-      { at: 15, msg: 'Generating synthetic UPI transaction burst...' },
-      { at: 40, msg: 'Executing stream ingestion & sliding-window velocity counters...' },
-      { at: 70, msg: 'Matching structural graph motifs & Tarjan cycle checks...' },
-      { at: 90, msg: 'Evaluating GNN anomaly embeddings & heuristic thresholds...' },
-      { at: 100, msg: 'Simulation run complete. Generating intelligence docket.' },
+      { at: 15, msg: 'Injecting synthetic UPI transactions into stream...' },
+      { at: 35, msg: 'Evaluating high-velocity sliding counters & in-degree ratio...' },
+      { at: 65, msg: 'Matching structural graph motif against known fraud typologies...' },
+      { at: 85, msg: 'Executing anomaly score thresholding & automated quarantine...' },
+      { at: 100, msg: 'Simulation run complete. Threat vector isolated.' },
     ];
 
     let currentProgress = 0;
@@ -82,21 +257,34 @@ export const FraudLabView: React.FC = () => {
         setPhaseMessage(currentPhase.msg);
       }
 
-      // Add a simulated transaction to the stream every 15%
+      // Add scenario-specific simulated transaction to stream
       if (currentProgress % 15 === 0) {
-        const isSuspicious = currentProgress > 45;
+        const isFlagged = currentProgress >= 45;
+        const firedRule = isFlagged
+          ? selectedScenario.keyRuleTriggers[
+              Math.floor(Math.random() * selectedScenario.keyRuleTriggers.length)
+            ]
+          : undefined;
+
         const newEvent: SimulatedEvent = {
           id: `SIM-TXN-${1000 + currentProgress}`,
-          sender: `user.sim_${Math.floor(Math.random() * 80) + 10}@okaxis`,
-          receiver: isSuspicious
+          sender: `sim_sender_${Math.floor(Math.random() * 80) + 10}@okaxis`,
+          receiver: isFlagged
             ? `quarantine_drop${Math.floor(Math.random() * 5) + 1}@paytm`
-            : `retail.kirana${Math.floor(Math.random() * 20) + 1}@hdfcbank`,
+            : `merchant_retail${Math.floor(Math.random() * 20) + 1}@hdfcbank`,
           amount: Math.floor(Math.random() * (amountMax - amountMin)) + amountMin,
-          riskScore: isSuspicious ? Math.floor(Math.random() * 25) + 75 : Math.floor(Math.random() * 20) + 5,
-          flagged: isSuspicious,
+          riskScore: isFlagged ? Math.floor(Math.random() * 20) + 78 : Math.floor(Math.random() * 20) + 5,
+          flagged: isFlagged,
           time: new Date().toLocaleTimeString(),
+          ruleFired: firedRule,
         };
-        setSimulatedStream((prev) => [newEvent, ...prev.slice(0, 7)]);
+        setSimulatedStream((prev) => [newEvent, ...prev.slice(0, 6)]);
+
+        // Flash graph elements
+        if (isFlagged && cyRef.current) {
+          cyRef.current.nodes('[role != "victim"]').addClass('sim-flagged');
+          cyRef.current.edges().addClass('sim-flagged');
+        }
       }
 
       if (currentProgress >= 100) {
@@ -104,10 +292,10 @@ export const FraudLabView: React.FC = () => {
         setIsSimulating(false);
         setResultsReady(true);
       }
-    }, 120);
+    }, 110);
 
     return () => clearInterval(interval);
-  }, [isSimulating, amountMin, amountMax]);
+  }, [isSimulating, amountMin, amountMax, selectedScenario]);
 
   const handleStartSimulation = () => {
     setIsSimulating(true);
@@ -119,11 +307,14 @@ export const FraudLabView: React.FC = () => {
     setPhaseMessage('Ready for simulation');
     setSimulatedStream([]);
     setResultsReady(false);
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('sim-flagged');
+    }
   };
 
   // Derived calculation metrics
   const estimatedTheft = (volume * (amountMin + amountMax)) / 4;
-  const interceptedAmount = estimatedTheft * 0.962;
+  const interceptedAmount = estimatedTheft * 0.968;
 
   return (
     <div className="space-y-6">
@@ -182,7 +373,9 @@ export const FraudLabView: React.FC = () => {
                     : 'border-border bg-canvas hover:bg-surface-subtle text-navy-700'
                 }`}
               >
-                <div className="font-semibold text-navy-900 truncate">{sc.name.split('.')[1] || sc.name}</div>
+                <div className="font-semibold text-navy-900 truncate">
+                  {sc.name.split('.')[1] || sc.name}
+                </div>
                 <div className="text-[10px] text-navy-500 mt-1 flex items-center gap-1">
                   <span>Complexity:</span>
                   <span
@@ -203,7 +396,7 @@ export const FraudLabView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Left Controls (1 col) + Right Live Execution & Results (2 cols) */}
+      {/* Main Grid: Left Controls (1 col) + Right Simulation Engine (2 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Simulation Controls (1 Col) */}
         <div className="bg-surface rounded-xl border border-border p-5 shadow-card space-y-5">
@@ -293,7 +486,9 @@ export const FraudLabView: React.FC = () => {
 
           {/* Complexity selector */}
           <div className="space-y-1.5">
-            <label className="text-xs text-navy-600 font-medium block">Adversarial Evasion Complexity</label>
+            <label className="text-xs text-navy-600 font-medium block">
+              Adversarial Evasion Complexity
+            </label>
             <div className="grid grid-cols-4 gap-1">
               {(['Low', 'Medium', 'High', 'Extreme'] as const).map((comp) => (
                 <button
@@ -326,7 +521,11 @@ export const FraudLabView: React.FC = () => {
           <div className="bg-surface rounded-xl border border-border p-6 shadow-card space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <Activity className={`w-4 h-4 ${isSimulating ? 'text-coral-500 animate-spin' : 'text-emerald-500'}`} />
+                <Activity
+                  className={`w-4 h-4 ${
+                    isSimulating ? 'text-coral-500 animate-spin' : 'text-emerald-500'
+                  }`}
+                />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-navy-900">
                   Simulation Execution State
                 </h3>
@@ -351,48 +550,81 @@ export const FraudLabView: React.FC = () => {
               </span>
             </div>
 
-            {/* Live streaming feed of synthetic transactions */}
-            {simulatedStream.length > 0 && (
-              <div className="pt-3 border-t border-border-subtle space-y-2">
-                <span className="text-[10px] uppercase font-semibold text-navy-400 tracking-wider block">
-                  Simulated Transaction Ingestion Ticker
-                </span>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                  {simulatedStream.map((evt) => (
-                    <div
-                      key={evt.id}
-                      className={`p-2 rounded border text-xs flex items-center justify-between transition-colors ${
-                        evt.flagged
-                          ? 'bg-red-50/70 border-red-200 text-red-900'
-                          : 'bg-canvas border-border text-navy-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="font-mono text-[10px] text-navy-400">{evt.time}</span>
-                        <span className="font-mono font-medium truncate max-w-[140px]">{evt.sender}</span>
-                        <span>→</span>
-                        <span className="font-mono font-medium truncate max-w-[140px]">{evt.receiver}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0 font-mono">
-                        <span className="font-bold">{formatINR(evt.amount)}</span>
-                        {evt.flagged ? (
-                          <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                            BLOCKED ({evt.riskScore})
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                            OK ({evt.riskScore})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+            {/* Scenario Topology Graph Canvas & Live Feed Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {/* Cytoscape Simulation Preview Canvas */}
+              <div className="p-3 rounded-xl border border-border bg-[#FAFBFD] space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-navy-900">
+                  <span className="flex items-center gap-1.5">
+                    <GitFork className="w-3.5 h-3.5 text-coral-500" />
+                    Attack Graph Motif Topology
+                  </span>
+                  <span className="text-[10px] font-mono text-navy-500">Live Graph</span>
+                </div>
+                <div
+                  ref={graphContainerRef}
+                  className="w-full h-48 rounded-lg bg-white border border-border-subtle relative overflow-hidden"
+                />
+                <div className="flex justify-between text-[10px] font-mono text-navy-400 pt-1">
+                  <span>Motif: {selectedScenario.id}</span>
+                  <span>Interactive Preview</span>
                 </div>
               </div>
-            )}
+
+              {/* Live Simulated Ingestion Feed */}
+              <div className="p-3 rounded-xl border border-border bg-canvas space-y-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs font-semibold text-navy-900">
+                  <span className="flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                    Simulated Ingestion Stream
+                  </span>
+                  <span className="text-[10px] font-mono text-navy-500">
+                    {simulatedStream.length} Events
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 h-48 overflow-y-auto">
+                  {simulatedStream.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-xs text-navy-400 text-center p-4">
+                      Click "Run Simulation" above to inject transaction events into the pipeline.
+                    </div>
+                  ) : (
+                    simulatedStream.map((evt) => (
+                      <div
+                        key={evt.id}
+                        className={`p-2 rounded border text-xs flex items-center justify-between transition-colors ${
+                          evt.flagged
+                            ? 'bg-red-50/70 border-red-200 text-red-900'
+                            : 'bg-surface border-border text-navy-800'
+                        }`}
+                      >
+                        <div className="truncate max-w-[140px]">
+                          <span className="font-mono text-[10px] text-navy-400 block">{evt.time}</span>
+                          <span className="font-mono text-[11px] truncate block">{evt.sender}</span>
+                        </div>
+                        <div className="text-right font-mono shrink-0">
+                          <span className="font-bold text-xs">{formatINR(evt.amount)}</span>
+                          <span
+                            className={`block text-[10px] font-semibold ${
+                              evt.flagged ? 'text-red-700' : 'text-emerald-700'
+                            }`}
+                          >
+                            {evt.flagged ? `FLAGGED (${evt.riskScore})` : `CLEARED (${evt.riskScore})`}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="text-[10px] text-navy-400 font-mono pt-1 text-right">
+                  Sub-15ms Heuristic Evaluation
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Simulation Outcome Summary (Shows after run or during results) */}
+          {/* Simulation Outcome Summary (Results Area) */}
           <div className="bg-surface rounded-xl border border-border p-6 shadow-card space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <h3 className="text-xs font-bold uppercase tracking-wider text-navy-900 flex items-center gap-2">

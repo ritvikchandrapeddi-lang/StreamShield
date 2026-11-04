@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import cytoscape, { Core, EventObject } from 'cytoscape';
 import {
   ZoomIn,
@@ -14,21 +14,54 @@ import {
   Clock,
   Layers,
   X,
+  GitFork,
+  Filter,
 } from 'lucide-react';
 import { moneyTrailPresets, formatINR } from '../data/mockData';
-import { AccountNode, MoneyTrailPreset } from '../types';
+import { AccountNode, MoneyTrailPreset, AccountRole } from '../types';
+import { useStreamShield } from '../context/StreamShieldContext';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
+
+type RoleFilterOption = 'all' | AccountRole;
 
 export const MoneyTrailView: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
-  const [activePreset, setActivePreset] = useState<MoneyTrailPreset>(moneyTrailPresets[0]);
+  const { selectedPresetId, setSelectedPresetId } = useStreamShield();
+
+  // Find initial preset based on context or default to first
+  const initialPreset = useMemo(() => {
+    return (
+      moneyTrailPresets.find((p) => p.id === selectedPresetId) || moneyTrailPresets[0]
+    );
+  }, [selectedPresetId]);
+
+  const [activePreset, setActivePreset] = useState<MoneyTrailPreset>(initialPreset);
   const [selectedNode, setSelectedNode] = useState<AccountNode | null>(null);
-  const [showEdgeLabels, setShowEdgeLabels] = useState(true);
-  const [colorByRisk, setColorByRisk] = useState(false);
+  const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(true);
+  const [colorByRisk, setColorByRisk] = useState<boolean>(false);
   const [graphLayout, setGraphLayout] = useState<'breadthfirst' | 'cose'>('breadthfirst');
+  const [roleFilter, setRoleFilter] = useState<RoleFilterOption>('all');
+
+  // Multi-hop path statistics when a node is selected
+  const [pathStats, setPathStats] = useState<{
+    totalPathAmount: number;
+    pathNodesCount: number;
+    pathEdgesCount: number;
+    hops: number;
+  } | null>(null);
+
+  // Sync activePreset if selectedPresetId in context changes
+  useEffect(() => {
+    const match = moneyTrailPresets.find((p) => p.id === selectedPresetId);
+    if (match && match.id !== activePreset.id) {
+      setActivePreset(match);
+      setSelectedNode(null);
+      setPathStats(null);
+    }
+  }, [selectedPresetId, activePreset.id]);
 
   // Node color helper
   const getNodeColor = useCallback(
@@ -87,6 +120,7 @@ export const MoneyTrailView: React.FC = () => {
           source: e.source,
           target: e.target,
           label: showEdgeLabels ? formatINR(e.amount) : '',
+          amount: e.amount,
           fullData: e,
         },
       })),
@@ -113,8 +147,8 @@ export const MoneyTrailView: React.FC = () => {
             height: 44,
             'border-width': 2,
             'border-color': '#FFFFFF',
-            'transition-property': 'background-color, border-color, border-width, width, height',
-            'transition-duration': 0.2,
+            'transition-property': 'background-color, border-color, border-width, width, height, opacity',
+            'transition-duration': 0.25,
           },
         },
         {
@@ -153,11 +187,14 @@ export const MoneyTrailView: React.FC = () => {
             'target-arrow-color': '#94A3B8',
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
-            'arrow-scale': 1.2,
+            'control-point-step-size': 45,
+            'arrow-scale': 1.25,
             label: 'data(label)',
             'font-size': '10px',
             'font-family': 'JetBrains Mono, monospace',
             'font-weight': 600,
+            'text-rotation': 'autorotate',
+            'text-margin-y': -8,
             color: '#475569',
             'text-background-opacity': 0.95,
             'text-background-color': '#FFFFFF',
@@ -165,61 +202,83 @@ export const MoneyTrailView: React.FC = () => {
             'text-background-shape': 'roundrectangle',
             'text-border-color': '#E2E6EE',
             'text-border-width': 1,
-            'text-border-opacity': 0.8,
+            'text-border-opacity': 0.9,
           },
         },
         {
-          selector: '.highlighted',
+          selector: '.highlighted-path',
           style: {
             'border-color': '#F05333',
             'border-width': 4,
             'line-color': '#F05333',
             'target-arrow-color': '#F05333',
+            width: 3.5,
             'z-index': 999,
           },
         },
         {
           selector: '.dimmed',
           style: {
-            opacity: 0.25,
+            opacity: 0.2,
           },
         },
       ],
       layout: {
         name: graphLayout,
         directed: true,
-        padding: 40,
+        padding: 50,
         animate: true,
         animationDuration: 400,
         ...(graphLayout === 'breadthfirst'
           ? {
               roots: [activePreset.nodes.find((n) => n.role === 'source')?.id || ''],
-              spacingFactor: 1.4,
+              spacingFactor: 1.6,
+              grid: false,
             }
-          : {}),
+          : {
+              nodeRepulsion: 12000,
+              idealEdgeLength: 140,
+            }),
       },
       minZoom: 0.4,
       maxZoom: 2.5,
     });
 
-    // Node click handler
+    // Multi-Hop Path Traversal on node click
     cy.on('tap', 'node', (evt: EventObject) => {
       const node = evt.target;
       const data: AccountNode = node.data('fullData');
       setSelectedNode(data);
 
-      // Multi-hop path highlighting
-      cy.elements().removeClass('highlighted dimmed');
-      const neighborhood = node.closedNeighborhood();
-      cy.elements().not(neighborhood).addClass('dimmed');
-      neighborhood.addClass('highlighted');
+      // Downstream and upstream traversal across multiple hops
+      const downstream = node.successors();
+      const upstream = node.predecessors();
+      const fullPath = node.union(downstream).union(upstream);
+
+      cy.elements().removeClass('highlighted-path dimmed');
+      cy.elements().not(fullPath).addClass('dimmed');
+      fullPath.addClass('highlighted-path');
+
+      // Calculate path metrics
+      let totalAmount = 0;
+      fullPath.edges().forEach((edge: cytoscape.EdgeSingular) => {
+        totalAmount += edge.data('amount') || 0;
+      });
+
+      setPathStats({
+        totalPathAmount: totalAmount,
+        pathNodesCount: fullPath.nodes().length,
+        pathEdgesCount: fullPath.edges().length,
+        hops: Math.max(fullPath.nodes().length - 1, 1),
+      });
     });
 
-    // Background click resets selection
+    // Background click resets selection and highlights
     cy.on('tap', (evt: EventObject) => {
       if (evt.target === cy) {
-        cy.elements().removeClass('highlighted dimmed');
+        cy.elements().removeClass('highlighted-path dimmed');
         setSelectedNode(null);
+        setPathStats(null);
       }
     });
 
@@ -230,21 +289,58 @@ export const MoneyTrailView: React.FC = () => {
     };
   }, [activePreset, showEdgeLabels, getNodeColor, graphLayout]);
 
+  // Apply node-role filter dynamically
+  useEffect(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+
+    if (roleFilter === 'all') {
+      cy.elements().removeClass('dimmed');
+      if (selectedNode) {
+        const node = cy.$id(selectedNode.id);
+        const fullPath = node.union(node.successors()).union(node.predecessors());
+        cy.elements().not(fullPath).addClass('dimmed');
+        fullPath.addClass('highlighted-path');
+      }
+    } else {
+      cy.elements().removeClass('highlighted-path dimmed');
+      const matchingNodes = cy.nodes(`[role = "${roleFilter}"]`);
+      cy.elements().not(matchingNodes).addClass('dimmed');
+      matchingNodes.addClass('highlighted-path');
+    }
+  }, [roleFilter, selectedNode]);
+
   // Graph control buttons
   const handleZoomIn = () => cyRef.current?.zoom(cyRef.current.zoom() * 1.25);
   const handleZoomOut = () => cyRef.current?.zoom(cyRef.current.zoom() * 0.8);
   const handleFit = () => cyRef.current?.fit();
   const handleResetLayout = () => {
-    cyRef.current?.elements().removeClass('highlighted dimmed');
+    cyRef.current?.elements().removeClass('highlighted-path dimmed');
     setSelectedNode(null);
+    setPathStats(null);
+    setRoleFilter('all');
     cyRef.current
       ?.layout({
         name: graphLayout,
         directed: true,
-        padding: 40,
+        padding: 50,
         animate: true,
+        ...(graphLayout === 'breadthfirst'
+          ? {
+              roots: [activePreset.nodes.find((n) => n.role === 'source')?.id || ''],
+              spacingFactor: 1.6,
+            }
+          : {}),
       })
       .run();
+  };
+
+  const handlePresetChange = (preset: MoneyTrailPreset) => {
+    setActivePreset(preset);
+    setSelectedPresetId(preset.id);
+    setSelectedNode(null);
+    setPathStats(null);
+    setRoleFilter('all');
   };
 
   const focusNode = (nodeId: string) => {
@@ -258,13 +354,21 @@ export const MoneyTrailView: React.FC = () => {
       });
       const data: AccountNode = target.data('fullData');
       setSelectedNode(data);
+
+      const downstream = target.successors();
+      const upstream = target.predecessors();
+      const fullPath = target.union(downstream).union(upstream);
+
+      cyRef.current.elements().removeClass('highlighted-path dimmed');
+      cyRef.current.elements().not(fullPath).addClass('dimmed');
+      fullPath.addClass('highlighted-path');
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Synthetic Demo Disclaimer Banner */}
-      <SyntheticBanner label="SIGNATURE ENGINE: Synthetic demo trails visualize structural money laundering topologies. They do not establish real-world identity, ownership, or guilt." />
+      <SyntheticBanner label="SIGNATURE ENGINE: Synthetic graph relationships do not establish real-world identity, account ownership, or guilt." />
 
       {/* Header & Preset Selector Bar */}
       <div className="bg-surface rounded-xl border border-border p-6 shadow-card space-y-4">
@@ -289,10 +393,7 @@ export const MoneyTrailView: React.FC = () => {
               {moneyTrailPresets.map((preset) => (
                 <button
                   key={preset.id}
-                  onClick={() => {
-                    setActivePreset(preset);
-                    setSelectedNode(null);
-                  }}
+                  onClick={() => handlePresetChange(preset)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     activePreset.id === preset.id
                       ? 'bg-surface text-navy-900 shadow-sm font-semibold'
@@ -324,6 +425,38 @@ export const MoneyTrailView: React.FC = () => {
               Nodes: <strong>{activePreset.compromisedCount}</strong>
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Role Filter Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 rounded-xl bg-surface border border-border text-xs">
+        <div className="flex items-center gap-2">
+          <Filter className="w-3.5 h-3.5 text-navy-500" />
+          <span className="font-semibold text-navy-800">Filter By Role:</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              { id: 'all', label: 'All Nodes' },
+              { id: 'source', label: 'Source Origin' },
+              { id: 'first_mule', label: 'Tier-1 Mules' },
+              { id: 'intermediate', label: 'Intermediaries' },
+              { id: 'downstream', label: 'Downstream Smurfs' },
+              { id: 'consolidation', label: 'Consolidation Vault' },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setRoleFilter(item.id)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                roleFilter === item.id
+                  ? 'bg-navy-900 text-white font-semibold shadow-sm'
+                  : 'bg-canvas hover:bg-surface-subtle text-navy-600 border border-border'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -427,6 +560,27 @@ export const MoneyTrailView: React.FC = () => {
             </div>
           </div>
 
+          {/* Active Multi-Hop Path Highlight Strip */}
+          {pathStats && selectedNode && (
+            <div className="px-5 py-2 bg-coral-50/70 border-b border-coral-200/80 flex items-center justify-between text-xs animate-in fade-in">
+              <div className="flex items-center gap-2 text-coral-900 font-medium">
+                <GitFork className="w-4 h-4 text-coral-600" />
+                <span>
+                  Active Multi-Hop Money Trail for <strong className="font-mono">{selectedNode.vpa}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-3 font-mono text-[11px] text-coral-950 font-semibold">
+                <span>Hops: {pathStats.hops}</span>
+                <span>•</span>
+                <span>Entities in Path: {pathStats.pathNodesCount}</span>
+                <span>•</span>
+                <span className="text-coral-700 font-bold">
+                  Traced Path Flow: {formatINR(pathStats.totalPathAmount)}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Cytoscape Canvas */}
           <div
             ref={containerRef}
@@ -439,7 +593,7 @@ export const MoneyTrailView: React.FC = () => {
 
           {/* Canvas Bottom Helper Hint */}
           <div className="px-5 py-2.5 bg-surface border-t border-border flex items-center justify-between text-[11px] text-navy-500">
-            <span>Tip: Click any node to open its dossier and highlight its multi-hop flow path.</span>
+            <span>Tip: Click any node to traverse upstream sources & downstream wash destinations.</span>
             <span className="font-mono">Engine: Cytoscape.js v3.30</span>
           </div>
         </div>
@@ -462,7 +616,11 @@ export const MoneyTrailView: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => setSelectedNode(null)}
+                  onClick={() => {
+                    setSelectedNode(null);
+                    setPathStats(null);
+                    cyRef.current?.elements().removeClass('highlighted-path dimmed');
+                  }}
                   className="p-1 rounded hover:bg-canvas text-navy-400"
                 >
                   <X className="w-4 h-4" />
@@ -479,11 +637,22 @@ export const MoneyTrailView: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-navy-500">Risk Assessment</span>
-                  <RiskBadge score={selectedNode.riskScore} level={selectedNode.riskScore >= 90 ? 'critical' : selectedNode.riskScore >= 75 ? 'high' : 'medium'} />
+                  <RiskBadge
+                    score={selectedNode.riskScore}
+                    level={
+                      selectedNode.riskScore >= 90
+                        ? 'critical'
+                        : selectedNode.riskScore >= 75
+                        ? 'high'
+                        : 'medium'
+                    }
+                  />
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-mono text-navy-400 pt-1 border-t border-border-subtle">
                   <span>Status:</span>
-                  <span className="capitalize text-coral-700 font-semibold">{selectedNode.status.replace('_', ' ')}</span>
+                  <span className="capitalize text-coral-700 font-semibold">
+                    {selectedNode.status.replace('_', ' ')}
+                  </span>
                 </div>
               </div>
 
@@ -518,7 +687,9 @@ export const MoneyTrailView: React.FC = () => {
               <div className="space-y-2 text-xs text-navy-700">
                 <div className="flex items-center gap-2">
                   <Building className="w-3.5 h-3.5 text-navy-400" />
-                  <span>{selectedNode.bankName} ({selectedNode.ifsc})</span>
+                  <span>
+                    {selectedNode.bankName} ({selectedNode.ifsc})
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-3.5 h-3.5 text-navy-400" />

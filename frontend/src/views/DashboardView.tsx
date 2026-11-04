@@ -9,6 +9,8 @@ import {
   Clock,
   Filter,
   ArrowRight,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -18,7 +20,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { mockTransactions, formatINR } from '../data/mockData';
+import { formatINR } from '../data/mockData';
+import { useStreamShield } from '../context/StreamShieldContext';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
@@ -62,13 +65,27 @@ const chartDataMap: Record<TimeRange, Array<{ time: string; volume: number; frau
 
 export const DashboardView: React.FC = () => {
   const navigate = useNavigate();
+  const {
+    transactions,
+    setSelectedTxId,
+    setSelectedPresetId,
+    isSimulatingGlobalStream,
+    setIsSimulatingGlobalStream,
+  } = useStreamShield();
+
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'high_risk'>('high_risk');
 
-  // Filter high-risk transactions for the dashboard table
+  // Filter transactions for recent table
   const displayedTxns = selectedTxFilter === 'high_risk'
-    ? mockTransactions.filter((tx) => tx.riskScore >= 70).slice(0, 5)
-    : mockTransactions.slice(0, 5);
+    ? transactions.filter((tx) => tx.riskScore >= 70).slice(0, 6)
+    : transactions.slice(0, 6);
+
+  // Dynamic metrics from current transaction state
+  const totalMonitoredAmount = transactions.reduce((acc, t) => acc + t.amount, 148200000);
+  const interceptedAmount = transactions
+    .filter((t) => t.decision === 'blocked')
+    .reduce((acc, t) => acc + t.amount, 8420000);
 
   const activeNetworks = [
     {
@@ -108,6 +125,16 @@ export const DashboardView: React.FC = () => {
     { time: '16:30', text: 'Tarjan cycle algorithm detected closed loop in Gujarat corridor', type: 'graph' },
   ];
 
+  const handleInspectTransaction = (txId: string) => {
+    setSelectedTxId(txId);
+    navigate('/transactions');
+  };
+
+  const handleInspectNetwork = (networkId: string) => {
+    setSelectedPresetId(networkId);
+    navigate('/money-trail');
+  };
+
   return (
     <div className="space-y-6">
       {/* Synthetic Demonstration Notice Banner */}
@@ -136,7 +163,7 @@ export const DashboardView: React.FC = () => {
               24h Monitored Flow
             </div>
             <div className="text-lg font-bold font-mono text-navy-900">
-              ₹14.82 Cr
+              {formatINR(totalMonitoredAmount)}
             </div>
           </div>
           <div className="bg-coral-50 border border-coral-200/80 rounded-lg px-4 py-2.5 text-right">
@@ -145,7 +172,7 @@ export const DashboardView: React.FC = () => {
               Intercepted Loss
             </div>
             <div className="text-lg font-bold font-mono text-coral-700">
-              ₹84.20 L
+              {formatINR(interceptedAmount)}
             </div>
           </div>
         </div>
@@ -288,7 +315,7 @@ export const DashboardView: React.FC = () => {
               {activeNetworks.map((net) => (
                 <div
                   key={net.id}
-                  onClick={() => navigate('/money-trail')}
+                  onClick={() => handleInspectNetwork(net.id)}
                   className="p-4 rounded-lg border border-border bg-canvas hover:bg-surface-subtle transition-all cursor-pointer group hover:border-coral-300 relative overflow-hidden"
                 >
                   <div className="flex items-start justify-between">
@@ -366,7 +393,11 @@ export const DashboardView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {displayedTxns.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-canvas transition-colors">
+                    <tr
+                      key={tx.id}
+                      onClick={() => handleInspectTransaction(tx.id)}
+                      className="hover:bg-canvas transition-colors cursor-pointer"
+                    >
                       <td className="py-3 pl-1 font-mono font-medium text-navy-900">{tx.id}</td>
                       <td className="py-3 font-mono text-navy-700">
                         <div className="truncate max-w-[140px]" title={tx.senderVpa}>
@@ -389,7 +420,10 @@ export const DashboardView: React.FC = () => {
                       </td>
                       <td className="py-3 text-right pr-1">
                         <button
-                          onClick={() => navigate('/transactions')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInspectTransaction(tx.id);
+                          }}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-coral-600 hover:text-coral-700"
                         >
                           Inspect <ArrowUpRight className="w-3 h-3" />
@@ -409,25 +443,42 @@ export const DashboardView: React.FC = () => {
           <div className="bg-surface rounded-xl border border-border p-6 shadow-card">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-emerald-500 animate-pulse" />
+                <Radio
+                  className={`w-4 h-4 ${
+                    isSimulatingGlobalStream ? 'text-emerald-500 animate-pulse' : 'text-amber-500'
+                  }`}
+                />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-navy-900">
                   Live Event Stream
                 </h3>
               </div>
-              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                100% Ingested
-              </span>
+              <button
+                onClick={() => setIsSimulatingGlobalStream(!isSimulatingGlobalStream)}
+                className="text-[11px] font-mono text-navy-500 hover:text-navy-900 flex items-center gap-1"
+                title="Pause or resume live simulated transactions"
+              >
+                {isSimulatingGlobalStream ? (
+                  <>
+                    <PauseCircle className="w-3.5 h-3.5 text-navy-400" /> Pause
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="w-3.5 h-3.5 text-emerald-600" /> Resume
+                  </>
+                )}
+              </button>
             </div>
 
             <p className="text-xs text-navy-500 mt-2">
               Continuous synthetic UPI transaction arrival rate. Evaluated in sub-15ms.
             </p>
 
-            <div className="mt-4 space-y-2.5">
-              {mockTransactions.slice(0, 5).map((tx, idx) => (
+            <div className="mt-4 space-y-2.5 max-h-80 overflow-y-auto">
+              {transactions.slice(0, 5).map((tx, idx) => (
                 <div
                   key={tx.id}
-                  className="p-3 rounded-lg border border-border-subtle bg-canvas text-xs space-y-1 hover:border-border transition-colors"
+                  onClick={() => handleInspectTransaction(tx.id)}
+                  className="p-3 rounded-lg border border-border-subtle bg-canvas text-xs space-y-1 hover:border-coral-300 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-navy-500 text-[11px]">

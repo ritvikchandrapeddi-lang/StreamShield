@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   ArrowUpDown,
@@ -15,20 +15,25 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { mockTransactions, formatINR } from '../data/mockData';
+import { formatINR } from '../data/mockData';
 import { Transaction, RiskLevel, Decision } from '../types';
+import { useStreamShield } from '../context/StreamShieldContext';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
 
 type SortField = 'timestamp' | 'amount' | 'riskScore';
 type SortOrder = 'asc' | 'desc';
+type TimeFilterOption = 'all' | '1h' | '24h' | '7d';
 
 export const TransactionMonitorView: React.FC = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const { transactions, updateTransactionDecision, selectedTxId, setSelectedTxId } =
+    useStreamShield();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState<string>('all');
   const [decisionFilter, setDecisionFilter] = useState<string>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilterOption>('all');
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('timestamp');
@@ -38,13 +43,34 @@ export const TransactionMonitorView: React.FC = () => {
 
   // Selected transaction for the detail drawer
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  // Sync selectedTx with selectedTxId from context if arrived via navigation/alert
+  useEffect(() => {
+    if (selectedTxId) {
+      const match = transactions.find((t) => t.id === selectedTxId);
+      if (match) {
+        setSelectedTx(match);
+      }
+    }
+  }, [selectedTxId, transactions]);
+
+  // Keep selectedTx state fresh when transaction decision updates in transactions array
+  useEffect(() => {
+    if (selectedTx) {
+      const updated = transactions.find((t) => t.id === selectedTx.id);
+      if (updated && updated.decision !== selectedTx.decision) {
+        setSelectedTx(updated);
+      }
+    }
+  }, [transactions, selectedTx]);
 
   // Filter and sort transactions
   const filteredTransactions = useMemo(() => {
+    const now = Date.now();
+
     return transactions
       .filter((tx) => {
-        // Search text matching
+        // Search text matching across id, sender, receiver, names
         const q = searchQuery.toLowerCase();
         const matchesQuery =
           !q ||
@@ -67,7 +93,17 @@ export const TransactionMonitorView: React.FC = () => {
         const max = maxAmount ? parseFloat(maxAmount) : Infinity;
         const matchesAmount = tx.amount >= min && tx.amount <= max;
 
-        return matchesQuery && matchesRisk && matchesDecision && matchesAmount;
+        // Time range filter
+        let matchesTime = true;
+        if (timeFilter !== 'all') {
+          const txTime = new Date(tx.timestamp).getTime();
+          const diffHours = (now - txTime) / (1000 * 60 * 60);
+          if (timeFilter === '1h') matchesTime = diffHours <= 1;
+          else if (timeFilter === '24h') matchesTime = diffHours <= 24;
+          else if (timeFilter === '7d') matchesTime = diffHours <= 168;
+        }
+
+        return matchesQuery && matchesRisk && matchesDecision && matchesAmount && matchesTime;
       })
       .sort((a, b) => {
         let valA = a[sortField];
@@ -82,7 +118,17 @@ export const TransactionMonitorView: React.FC = () => {
           return (valA as number) < (valB as number) ? 1 : -1;
         }
       });
-  }, [transactions, searchQuery, riskFilter, decisionFilter, minAmount, maxAmount, sortField, sortOrder]);
+  }, [
+    transactions,
+    searchQuery,
+    riskFilter,
+    decisionFilter,
+    timeFilter,
+    minAmount,
+    maxAmount,
+    sortField,
+    sortOrder,
+  ]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredTransactions.length / pageSize) || 1;
@@ -91,26 +137,17 @@ export const TransactionMonitorView: React.FC = () => {
     return filteredTransactions.slice(start, start + pageSize);
   }, [filteredTransactions, currentPage, pageSize]);
 
-  // Handler to update decision
+  // Action handlers
   const handleUpdateDecision = (newDecision: Decision) => {
     if (!selectedTx) return;
-
-    setTransactions((prev) =>
-      prev.map((t) => (t.id === selectedTx.id ? { ...t, decision: newDecision } : t))
-    );
-
-    setSelectedTx((prev) => (prev ? { ...prev, decision: newDecision } : null));
-    setActionFeedback(`Transaction ${selectedTx.id} marked as ${newDecision.toUpperCase()}`);
-
-    setTimeout(() => {
-      setActionFeedback(null);
-    }, 4000);
+    updateTransactionDecision(selectedTx.id, newDecision);
   };
 
   const resetFilters = () => {
     setSearchQuery('');
     setRiskFilter('all');
     setDecisionFilter('all');
+    setTimeFilter('all');
     setMinAmount('');
     setMaxAmount('');
     setCurrentPage(1);
@@ -125,33 +162,36 @@ export const TransactionMonitorView: React.FC = () => {
     }
   };
 
+  const handleCloseDrawer = () => {
+    setSelectedTx(null);
+    setSelectedTxId(null);
+  };
+
   return (
     <div className="space-y-6 relative">
-      <SyntheticBanner label="DEMO SIMULATION: Real-time UPI event feed with simulated risk scoring and operational analyst triage." />
+      <SyntheticBanner label="TRANSACTION MONITORING WORKSPACE — Real-time event feed with sub-15ms fraud risk scores, contextual risk factors, and operator triage controls." />
 
       {/* Title & Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between pb-2 border-b border-border gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-navy-900">
-            Transaction Monitoring Workspace
+            UPI Transaction Monitoring
           </h1>
           <p className="text-xs text-navy-600 mt-0.5">
-            Real-time feed of UPI transactions with sub-15ms fraud risk scores and rule-engine assessments.
+            Searchable and sortable real-time event log with multi-hop heuristic risk factors and instant containment actions.
           </p>
         </div>
 
-        {/* Action feedback toast */}
-        {actionFeedback && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>{actionFeedback}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <span className="bg-surface px-3 py-1.5 rounded-lg border border-border text-navy-700">
+            Total Monitored: <strong className="text-navy-900">{transactions.length} Transactions</strong>
+          </span>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="bg-surface rounded-xl border border-border p-4 shadow-card space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           {/* Search Query */}
           <div className="lg:col-span-2 relative">
             <Search className="w-4 h-4 text-navy-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -202,6 +242,23 @@ export const TransactionMonitorView: React.FC = () => {
             </select>
           </div>
 
+          {/* Time Range Filter */}
+          <div>
+            <select
+              value={timeFilter}
+              onChange={(e) => {
+                setTimeFilter(e.target.value as TimeFilterOption);
+                setCurrentPage(1);
+              }}
+              className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border bg-canvas text-navy-800 outline-none"
+            >
+              <option value="all">All Time</option>
+              <option value="1h">Last 1 Hour</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+            </select>
+          </div>
+
           {/* Amount range filters */}
           <div className="flex items-center gap-1.5">
             <input
@@ -233,7 +290,12 @@ export const TransactionMonitorView: React.FC = () => {
           <div>
             Showing <span className="font-semibold text-navy-900">{filteredTransactions.length}</span> matching transactions
           </div>
-          {(searchQuery || riskFilter !== 'all' || decisionFilter !== 'all' || minAmount || maxAmount) && (
+          {(searchQuery ||
+            riskFilter !== 'all' ||
+            decisionFilter !== 'all' ||
+            timeFilter !== 'all' ||
+            minAmount ||
+            maxAmount) && (
             <button
               onClick={resetFilters}
               className="inline-flex items-center gap-1 text-xs text-coral-600 hover:text-coral-700 font-medium"
@@ -293,7 +355,7 @@ export const TransactionMonitorView: React.FC = () => {
                     <p className="text-xs text-navy-500 mt-1">Try relaxing your search terms or filter criteria.</p>
                     <button
                       onClick={resetFilters}
-                      className="mt-3 px-3 py-1.5 text-xs rounded bg-canvas border border-border text-navy-800 hover:bg-surface"
+                      className="mt-3 px-3 py-1.5 text-xs rounded bg-canvas border border-border text-navy-800 hover:bg-surface font-medium"
                     >
                       Reset All Filters
                     </button>
@@ -334,7 +396,7 @@ export const TransactionMonitorView: React.FC = () => {
                       <StatusBadge status={tx.decision} />
                     </td>
                     <td className="py-3.5 px-4 text-right font-mono text-navy-500 text-[11px]">
-                      {tx.timestamp.replace('T', ' ').replace('Z', '')}
+                      {tx.timestamp.replace('T', ' ').replace('Z', '').slice(0, 19)}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
@@ -390,7 +452,7 @@ export const TransactionMonitorView: React.FC = () => {
               <h2 className="text-base font-bold font-mono text-navy-900">{selectedTx.id}</h2>
             </div>
             <button
-              onClick={() => setSelectedTx(null)}
+              onClick={handleCloseDrawer}
               className="p-1.5 rounded-lg hover:bg-surface text-navy-500 hover:text-navy-900"
             >
               <X className="w-5 h-5" />
@@ -434,7 +496,7 @@ export const TransactionMonitorView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons: Demonstration Interaction */}
+              {/* Action Buttons: Functional Decision Triage */}
               <div className="pt-3 border-t border-border-subtle flex items-center gap-2">
                 <button
                   onClick={() => handleUpdateDecision('approved')}
