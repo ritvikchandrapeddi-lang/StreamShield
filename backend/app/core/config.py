@@ -5,13 +5,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "StreamShield Fraud Intelligence API"
-    VERSION: str = "0.1.0"
+    VERSION: str = "0.2.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    
+
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    
+
+    # Secret Key placeholder for session/JWT tokens (do not use default in production)
+    SECRET_KEY: str = "streamshield-insecure-dev-secret-key-change-in-prod"
+
+    # Database Configuration
+    # Defaults to local SQLite file for zero-infrastructure local execution.
+    # Set to 'postgresql://postgres:postgres@localhost:5432/streamshield' in .env for PostgreSQL.
+    DATABASE_URL: str = "sqlite:///./streamshield.db"
+    DATABASE_ECHO: bool = False
+    AUTO_SEED: bool = True
+
     # Allowed CORS origins
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
@@ -41,4 +51,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

@@ -1,7 +1,7 @@
 # StreamShield: Real-Time UPI Fraud Detection & Financial Crime Intelligence
 
-> **Current Status**: **Phase 3 — Interactive Frontend Functionality Implemented**  
-> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console—including the Cytoscape multi-hop Money Trail Explorer, live Transaction Monitor, Fraud Intelligence Lab simulator, and Case Investigations docket—is fully interactive with centralized state management, dynamic graph path tracing, and high-fidelity synthetic UPI demonstration fixtures.
+> **Current Status**: **Phase 4 — Backend + Database Foundation Implemented**  
+> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console and FastAPI REST API backend—including SQLAlchemy database integration (PostgreSQL with zero-dependency local SQLite fallback), transaction monitoring, live fraud alerts, case investigations docket, and OpenAPI Swagger documentation—are operational with high-fidelity synthetic UPI demonstration fixtures.
 
 ---
 
@@ -191,14 +191,23 @@ npm run dev
   - Fraud Intelligence Lab with animated transaction event streams and real-time Cytoscape topology rendering across 6 attack motifs.
   - Case Investigations docket with full analyst note CRUD, case status transitions, and Section 91 CrPC LEA JSON bundle export.
   - Model Performance workspace with dynamic decision threshold slider, interactive confusion matrix analysis, and multi-window evaluation splits.
-- [ ] **Phase 4: Streaming Ingestion & Real-Time Engine**
+- [x] **Phase 4: Backend + Database Foundation**
+  - Modular FastAPI REST API architecture with Pydantic v2 schemas and validation.
+  - SQLAlchemy ORM database integration supporting both PostgreSQL and zero-infrastructure local SQLite.
+  - Database models and schemas for Accounts, Transactions, Real-Time Alerts, and Case Investigations.
+  - Full endpoints for transactions, aggregated dashboard stats, alerts, case dossiers, analyst notes, and statutory LEA Section 91 CrPC export.
+  - Realistic synthetic demonstration seed fixtures and seed reset endpoint.
+  - Frontend API service client (`frontend/src/services/api.ts`) connecting web console state to backend API with graceful offline fallback.
+  - Interactive OpenAPI Swagger documentation at `/docs` and ReDoc at `/redoc`.
+  - Comprehensive automated integration test suite (`backend/tests/test_api.py`) with 10 passing tests.
+- [ ] **Phase 5: Streaming Ingestion & Real-Time Engine (Kafka/Redis)**
   - UPI transaction schema definition, event models, and data contract specifications.
   - Streaming endpoint and Kafka / Redis event pipeline integration.
-- [ ] **Phase 5: Graph Intelligence & Mule Network Tracing**
+- [ ] **Phase 6: Graph Intelligence & Mule Network Tracing**
   - Graph database ingestion, multi-hop path tracing, and mule cluster scoring algorithms.
-- [ ] **Phase 6: Fraud DNA & Attack Simulator Backend Integration**
+- [ ] **Phase 7: Fraud DNA & Attack Simulator Backend Integration**
   - Typology library, synthetic transaction generator, and attack vector stress testbed.
-- [ ] **Phase 7: End-to-End Hardening, Verification & Deployment**
+- [ ] **Phase 8: End-to-End Hardening, Verification & Deployment**
   - Integration testing, throughput profiling, benchmark verification, and containerization.
 
 ---

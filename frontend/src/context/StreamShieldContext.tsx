@@ -10,6 +10,7 @@ import {
   OfficerProfile,
 } from '../types';
 import { mockTransactions, mockCases } from '../data/mockData';
+import { apiService } from '../services/api';
 
 export const officerProfiles: OfficerProfile[] = [
   {
@@ -23,18 +24,18 @@ export const officerProfiles: OfficerProfile[] = [
   {
     id: 'off-2',
     name: 'P. Sengupta',
-    title: 'Senior Fraud Ops Analyst',
-    badgeNumber: 'FO-4122',
-    cell: 'National UPI Risk Desk',
-    department: 'Financial Crime Intelligence Hub',
+    title: 'Senior AML Forensics Officer',
+    badgeNumber: 'AML-4402',
+    cell: 'Financial Intelligence Unit',
+    department: 'Nodal Cyber Enforcement, Mumbai',
   },
   {
     id: 'off-3',
     name: 'A. Kulkarni',
-    title: 'AML Compliance Officer',
-    badgeNumber: 'AML-0718',
-    cell: 'FIU-IND Reporting Team',
-    department: 'Regulatory Compliance Division',
+    title: 'Risk Operations Specialist',
+    badgeNumber: 'RSK-1092',
+    cell: 'Fraud Risk Operations',
+    department: 'Real-Time Defense Center, Pune',
   },
 ];
 
@@ -151,6 +152,9 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
         prev.map((t) => (t.id === id ? { ...t, decision } : t))
       );
 
+      // Asynchronously synchronize decision to backend API
+      apiService.updateTransactionDecision(id, decision).catch(() => {});
+
       const decisionLabels: Record<Decision, { type: ToastMessage['type']; text: string }> = {
         approved: { type: 'success', text: 'APPROVED' },
         review: { type: 'warning', text: 'FLAGGED FOR REVIEW' },
@@ -169,6 +173,10 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setCases((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status } : c))
       );
+
+      // Asynchronously synchronize status to backend API
+      apiService.updateInvestigationStatus(id, status).catch(() => {});
+
       addToast(
         `Case ${id} Updated`,
         `Investigation status shifted to ${status.toUpperCase()}`,
@@ -200,6 +208,9 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
           c.id === caseId ? { ...c, notes: [newNote, ...c.notes] } : c
         )
       );
+
+      // Asynchronously synchronize note to backend API
+      apiService.addCaseNote(caseId, note).catch(() => {});
 
       addToast('Case Note Recorded', `Added note to ${caseId}`, 'success');
     },
@@ -235,6 +246,10 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
           };
         })
       );
+
+      // Asynchronously synchronize note deletion to backend API
+      apiService.deleteCaseNote(caseId, noteId).catch(() => {});
+
       addToast('Note Removed', 'Case note deleted', 'info');
     },
     [addToast]
@@ -247,6 +262,7 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAllAlertsAsRead = useCallback(() => {
     setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
+    apiService.markAllAlertsRead().catch(() => {});
     addToast('Alerts Cleared', 'All real-time stream alerts marked as read', 'info');
   }, [addToast]);
 
@@ -270,7 +286,21 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setSelectedTxId(null);
     setSelectedCaseId(mockCases[0].id);
     setSelectedPresetId('syndicate-falcon');
+    apiService.resetSeedData().catch(() => {});
     addToast('State Restored', 'Reset all demo fixtures and cases to baseline', 'info');
+  }, [addToast]);
+
+  // Initial Probe to check if FastAPI backend is online
+  useEffect(() => {
+    apiService.checkHealth().then((health) => {
+      if (health && health.status === 'healthy') {
+        addToast(
+          'Backend Connected',
+          `FastAPI engine & ${health.services.database.dialect.toUpperCase()} database active`,
+          'success'
+        );
+      }
+    });
   }, [addToast]);
 
   // Periodic Simulated Transaction Ingestion Stream
