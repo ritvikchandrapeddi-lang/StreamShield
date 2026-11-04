@@ -72,3 +72,4 @@ class SimulationRunResponse(BaseModel):
         "SYNTHETIC / SIMULATED DATA — StreamShield Fraud Intelligence Lab simulation run. Results generated using procedural attack models.",
         description="Data integrity marker"
     )
+

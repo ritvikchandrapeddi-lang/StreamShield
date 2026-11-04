@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { mockSimulationScenarios, formatINR } from '../data/mockData';
 import { SimulationScenario } from '../types';
+import { apiService } from '../services/api';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
 
 interface SimulatedEvent {
@@ -46,6 +47,7 @@ export const FraudLabView: React.FC = () => {
   const [phaseMessage, setPhaseMessage] = useState<string>('Ready for simulation');
   const [simulatedStream, setSimulatedStream] = useState<SimulatedEvent[]>([]);
   const [resultsReady, setResultsReady] = useState<boolean>(false);
+  const [backendSimResult, setBackendSimResult] = useState<any>(null);
 
   // Mini Cytoscape Canvas for scenario topology preview
   const graphContainerRef = useRef<HTMLDivElement>(null);
@@ -299,6 +301,31 @@ export const FraudLabView: React.FC = () => {
 
   const handleStartSimulation = () => {
     setIsSimulating(true);
+    // Trigger real backend simulation engine asynchronously
+    apiService.runSimulation({
+      scenario_id: selectedScenario.id,
+      volume,
+      intermediaries,
+      amount_min: amountMin,
+      amount_max: amountMax,
+      complexity,
+    }).then((res) => {
+      if (res && res.simulated_stream) {
+        setBackendSimResult(res);
+        // Map backend scored stream to UI stream
+        const mappedStream: SimulatedEvent[] = res.simulated_stream.slice(0, 10).map((evt: any) => ({
+          id: evt.id,
+          sender: evt.sender,
+          receiver: evt.receiver,
+          amount: evt.amount,
+          riskScore: evt.risk_score,
+          flagged: evt.flagged,
+          time: evt.time,
+          ruleFired: evt.rule_fired,
+        }));
+        setSimulatedStream(mappedStream);
+      }
+    }).catch(() => {});
   };
 
   const handleResetSimulation = () => {
@@ -307,14 +334,18 @@ export const FraudLabView: React.FC = () => {
     setPhaseMessage('Ready for simulation');
     setSimulatedStream([]);
     setResultsReady(false);
+    setBackendSimResult(null);
     if (cyRef.current) {
       cyRef.current.elements().removeClass('sim-flagged');
     }
   };
 
-  // Derived calculation metrics
-  const estimatedTheft = (volume * (amountMin + amountMax)) / 4;
-  const interceptedAmount = estimatedTheft * 0.968;
+  // Derived calculation metrics (using live backend results if available)
+  const estimatedTheft = backendSimResult?.metrics?.total_simulated_volume ?? ((volume * (amountMin + amountMax)) / 4);
+  const interceptedAmount = backendSimResult?.metrics?.mitigated_loss_amount ?? (estimatedTheft * 0.968);
+  const detectionRate = backendSimResult?.metrics?.detection_rate_percent ?? 96.8;
+  const scoringLatency = backendSimResult?.metrics?.mean_pipeline_latency_ms ? `${backendSimResult.metrics.mean_pipeline_latency_ms} ms` : '11.4 ms';
+  const quarantinedNodesCount = backendSimResult?.metrics?.quarantined_accounts_count ? `${backendSimResult.metrics.quarantined_accounts_count} VPAs` : `${intermediaries} VPAs`;
 
   return (
     <div className="space-y-6">
@@ -642,7 +673,7 @@ export const FraudLabView: React.FC = () => {
                 <span className="text-[10px] uppercase text-navy-500 font-semibold block">
                   Interception Rate
                 </span>
-                <span className="text-xl font-bold font-mono text-emerald-600">96.8%</span>
+                <span className="text-xl font-bold font-mono text-emerald-600">{detectionRate}%</span>
                 <span className="text-[10px] text-navy-400 block mt-0.5">High precision</span>
               </div>
               <div className="p-3.5 rounded-lg bg-canvas border border-border">
@@ -659,7 +690,7 @@ export const FraudLabView: React.FC = () => {
                   Quarantine Nodes
                 </span>
                 <span className="text-xl font-bold font-mono text-navy-900">
-                  {intermediaries} VPAs
+                  {quarantinedNodesCount}
                 </span>
                 <span className="text-[10px] text-navy-400 block mt-0.5">Mule cluster isolated</span>
               </div>
@@ -667,10 +698,30 @@ export const FraudLabView: React.FC = () => {
                 <span className="text-[10px] uppercase text-navy-500 font-semibold block">
                   Scoring Latency
                 </span>
-                <span className="text-xl font-bold font-mono text-navy-900">11.4 ms</span>
+                <span className="text-xl font-bold font-mono text-navy-900">{scoringLatency}</span>
                 <span className="text-[10px] text-emerald-600 block mt-0.5">Within UPI SLA</span>
               </div>
             </div>
+
+            {/* Fraud DNA Match Badge if Available */}
+            {backendSimResult?.fraud_dna_match && (
+              <div className="p-3 rounded-lg bg-purple-50/70 border border-purple-200 text-xs text-purple-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                  <div>
+                    <span className="font-semibold block">
+                      Fraud DNA Match: {backendSimResult.fraud_dna_match.archetype_name}
+                    </span>
+                    <span className="text-[11px] text-purple-700">
+                      {backendSimResult.fraud_dna_match.narrative}
+                    </span>
+                  </div>
+                </div>
+                <span className="font-mono font-bold text-sm text-purple-700 shrink-0">
+                  {backendSimResult.fraud_dna_match.similarity_percentage}% Match
+                </span>
+              </div>
+            )}
 
             {/* Detection Explanation Panel */}
             <div className="p-4 rounded-lg bg-canvas border border-border space-y-2">

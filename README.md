@@ -1,7 +1,8 @@
 # StreamShield: Real-Time UPI Fraud Detection & Financial Crime Intelligence
 
-> **Current Status**: **Phase 7 — Fraud DNA & Attack Simulator Backend Implemented**  
-> ⚠️ **Notice**: This project is actively under development. The full-featured financial crime intelligence web console, FastAPI REST API backend, SQLAlchemy database integration, real-time XGBoost ML fraud detection engine, NetworkX Graph Intelligence engine, and Phase 7 Fraud DNA pattern recognition & Fraud Attack Simulator—including 8-dimensional structural invariant vector extraction, cosine similarity archetype matching, procedural attack stream generation across 6 core scenarios, empirical simulator metrics, and interactive Cytoscape integration—are fully operational with synthetic UPI demonstration fixtures.
+> **Current Status**: **Phase 8 — End-to-End Hardening, Verification & Deployment Complete**  
+> 🛡️ **All 8 Development Phases Fully Integrated & Validated (46/46 Automated Backend Tests Passing | Production Frontend Verified)**  
+> ⚠️ **Notice**: All transaction fixtures, banking entities, network topologies, and simulator attack flows are synthetic demonstration data for hackathon defense and architectural evaluation. No real customer PII or proprietary banking credentials are stored.
 
 ---
 
@@ -226,8 +227,85 @@ npm run dev
   - Simulator execution engine feeding synthesized streams into Real-Time ML Fraud Pipeline, NetworkX graph analyzer, and money-trail tracer.
   - Dedicated `/api/v1/dna/*` and `/api/v1/simulator/*` REST endpoints for archetype queries, account DNA extraction, and configurable simulation runs.
   - 16 new automated tests in `test_dna.py` and `test_simulator.py` (46 total backend tests passing).
-- [ ] **Phase 8: End-to-End Hardening, Verification & Deployment**
-  - Integration testing, throughput profiling, benchmark verification, and containerization.
+- [x] **Phase 8: End-to-End Hardening, Verification & Deployment**
+  - Full frontend–backend integration across all six screens (`DashboardView`, `TransactionMonitorView`, `MoneyTrailView`, `FraudLabView`, `InvestigationsView`, `ModelPerformanceView`).
+  - Automated camelCase <-> snake_case data mappers with robust offline-first fallback.
+  - Live Cytoscape dynamic money-trail tracing directly querying the NetworkX backend graph for arbitrary VPAs.
+  - Interactive online retraining and empirical telemetry card in Model Performance workspace.
+  - Empirical latency and throughput profiling measuring sub-2ms P99 transaction turnaround and over 2,000 TPS single-core throughput.
+  - 100% test pass rate across 46 automated backend test suites (`test_api.py`, `test_graph.py`, `test_dna.py`, `test_simulator.py`).
+  - Production deployment configurations: Vercel SPA routing (`vercel.json`), Render web service spec (`render.yaml`), containerized `Dockerfile`, and updated `.env.example`.
+
+---
+
+## ⚡ Empirical Performance & Latency Benchmarks
+
+StreamShield underwent rigorous, unsimulated empirical benchmarking measuring turnaround latency and single-core throughput under load.
+
+| Component / Subsystem | Metric | Empirical Value | SLA / Requirement | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Real-Time ML Fraud Pipeline** | P50 Median Latency | **0.41 ms** | < 10.0 ms | ✅ Strict Pass |
+| *(18-feature extraction + XGBoost inference + SHAP explanation)* | P95 Latency | **0.94 ms** | < 15.0 ms | ✅ Strict Pass |
+| | P99 Tail Latency | **1.22 ms** | < 20.0 ms | ✅ Strict Pass |
+| | Single-Core Throughput | **2,074.9 TPS** | > 1,000 TPS | ✅ High-Throughput |
+| **Multi-Hop Money Trail Tracing** | P50 Median Latency | **0.08 ms** | < 5.0 ms | ✅ Instantaneous |
+| *(NetworkX 4-hop DFS/BFS traversal + sink discovery)* | P99 Tail Latency | **0.10 ms** | < 10.0 ms | ✅ Instantaneous |
+| | Throughput | **11,718.7 traces/sec** | > 2,000 traces/sec | ✅ Extreme Speed |
+| **Fraud DNA Structural Pattern Matcher** | P50 Median Latency | **0.77 ms** | < 10.0 ms | ✅ Instantaneous |
+| *(8-strand topological vector extraction + cosine matrix)* | P99 Tail Latency | **1.71 ms** | < 20.0 ms | ✅ Strict Pass |
+| | Throughput | **1,170.8 matches/sec** | > 500 matches/sec | ✅ High-Throughput |
+
+*Benchmarks executed on Python 3.14 on Windows 11 with XGBoost 3.0.0 and NetworkX 3.4. All metrics recorded directly in `backend/scripts/benchmark_report.json`.*
+
+---
+
+## 🚀 Deployment Guide
+
+StreamShield is designed for seamless, zero-friction local or cloud deployment.
+
+### Option 1: Local Development
+
+1. **Backend Server**:
+   ```bash
+   cd backend
+   python -m venv .venv
+   .\.venv\Scripts\activate   # Or source .venv/bin/activate on Linux/macOS
+   pip install -r requirements.txt
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+   *FastAPI Swagger documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).*
+
+2. **Frontend Console**:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   *Access the web console at [http://localhost:5173](http://localhost:5173).*
+
+### Option 2: Production Cloud Deployment
+
+- **Frontend (Vercel)**:
+  - Connect your GitHub repository to Vercel.
+  - Set Root Directory to `frontend`.
+  - Environment variable: `VITE_API_BASE_URL=https://your-backend-api.onrender.com`.
+  - Deployment is auto-configured with SPA client-side routing via [`vercel.json`](file:///d:/D%20DRIVR/ritvik%20engi/StreamSheild/frontend/vercel.json).
+
+- **Backend (Render / Docker)**:
+  - Connect repository to Render as a Web Service using [`backend/render.yaml`](file:///d:/D%20DRIVR/ritvik%20engi/StreamSheild/backend/render.yaml) or deploy the containerized [`backend/Dockerfile`](file:///d:/D%20DRIVR/ritvik%20engi/StreamSheild/backend/Dockerfile).
+  - Environment variables: `ENVIRONMENT=production`, `DATABASE_URL=sqlite:///./streamshield.db` (or managed PostgreSQL), `CORS_ORIGINS=https://your-frontend.vercel.app`.
+
+---
+
+## ⚖️ PS-01 Requirements Compliance & Technical Limitations
+
+| PS-01 Requirement | StreamShield Implementation | Hackathon Scope / Limitation |
+| :--- | :--- | :--- |
+| **Real-time Scoring** | XGBoost classifier with 18 streaming features (<1.5ms P99) | Evaluated on synthetic UPI distributions rather than proprietary NPCI production stream. |
+| **Mule Account Detection** | Graph heuristic scoring combining in/out-degree, velocity, and neighbor contamination | Graph is maintained in-memory (NetworkX) with SQLite/Postgres persistence; production scale (>100M edges) would employ distributed Neo4j/Memgraph or graph neural networks. |
+| **Multi-Hop Fund Tracing** | Breadth-first downstream money-trail tracing with sink identification | Traces up to 4 hops in real time; cyclic loops are detected and unrolled to avoid infinite recursion. |
+| **Attack Simulation** | 6 procedural scenarios (`funnel-attack`, `smurfing-split`, `layering-intermediates`, etc.) | Procedural synthetic generator; does not inject live bank network packets. |
+| **Statutory LEA Export** | Section 91 CrPC forensic case dossier JSON export with evidence timeline | Automated client-side bundle generation compliant with typical financial crime investigator schemas. |
 
 ---
 

@@ -173,3 +173,4 @@ async def test_api_account_dna_signature():
         assert "strands" in data["dna_profile"]
         assert len(data["dna_profile"]["strands"]) == 8
         assert "SYNTHETIC / EXPERIMENTAL" in data["disclaimer"]
+

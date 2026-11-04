@@ -178,3 +178,4 @@ KNOWN_ARCHETYPES: List[Dict[str, Any]] = [
         ],
     },
 ]
+

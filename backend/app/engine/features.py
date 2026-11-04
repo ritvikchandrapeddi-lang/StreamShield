@@ -55,21 +55,21 @@ def extract_features(tx_data: Dict[str, Any], context: Dict[str, Any] = None) ->
     hour = float(dt.hour)
     is_night_tx = 1.0 if (1 <= hour <= 4) else 0.0
 
-    # Velocity features from context (or defaults)
-    velocity_1h_count = float(ctx.get("sender_velocity_1h_count", 1))
-    velocity_1h_amount = float(ctx.get("sender_velocity_1h_amount", amount))
+    # Velocity features from context (or tx_data fallback, then defaults)
+    velocity_1h_count = float(ctx.get("sender_velocity_1h_count", tx_data.get("sender_velocity_1h_count", 1)))
+    velocity_1h_amount = float(ctx.get("sender_velocity_1h_amount", tx_data.get("sender_velocity_1h_amount", amount)))
     velocity_spike = 1.0 if velocity_1h_count >= 4 else 0.0
 
     # Beneficiary graph topology proxy
-    receiver_in = float(ctx.get("receiver_incoming_count", 25))
-    receiver_out = float(ctx.get("receiver_outgoing_count", 25))
+    receiver_in = float(ctx.get("receiver_incoming_count", tx_data.get("receiver_incoming_count", 25)))
+    receiver_out = float(ctx.get("receiver_outgoing_count", tx_data.get("receiver_outgoing_count", 25)))
     fan_in_ratio = float((receiver_in + 1.0) / (receiver_out + 1.0))
 
     channel = tx_data.get("channel", "P2P")
     is_p2p = 1.0 if channel == "P2P" else 0.0
 
     device_id = str(tx_data.get("sender_device_id", ""))
-    is_emulator = 1.0 if any(k in device_id.lower() for k in ["auto", "mock", "emu", "root", "dev-sm"]) else 0.0
+    is_emulator = 1.0 if any(k in device_id.lower() for k in ["auto", "mock", "emu", "root", "dev-sm", "bot", "mule"]) else 0.0
 
     mule_prior = float(tx_data.get("mule_probability", 0.0))
 

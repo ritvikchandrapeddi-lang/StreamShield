@@ -290,15 +290,40 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
     addToast('State Restored', 'Reset all demo fixtures and cases to baseline', 'info');
   }, [addToast]);
 
-  // Initial Probe to check if FastAPI backend is online
+  // Initial Probe to check if FastAPI backend is online and sync live data
   useEffect(() => {
-    apiService.checkHealth().then((health) => {
+    apiService.checkHealth().then(async (health) => {
       if (health && health.status === 'healthy') {
         addToast(
           'Backend Connected',
           `FastAPI engine & ${health.services.database.dialect.toUpperCase()} database active`,
           'success'
         );
+
+        // Sync live transactions from backend
+        try {
+          const txRes = await apiService.getTransactions({ limit: 50 });
+          if (txRes && txRes.items.length > 0) {
+            setTransactions(txRes.items);
+          }
+        } catch {}
+
+        // Sync live investigation cases from backend
+        try {
+          const caseRes = await apiService.getInvestigations();
+          if (caseRes && caseRes.items.length > 0) {
+            setCases(caseRes.items);
+            setSelectedCaseId(caseRes.items[0].id);
+          }
+        } catch {}
+
+        // Sync live alerts from backend
+        try {
+          const alertRes = await apiService.getAlerts();
+          if (alertRes && alertRes.items.length > 0) {
+            setAlerts(alertRes.items);
+          }
+        } catch {}
       }
     });
   }, [addToast]);

@@ -164,3 +164,4 @@ SCENARIO_CATALOG: List[Dict[str, Any]] = [
         ],
     },
 ]
+

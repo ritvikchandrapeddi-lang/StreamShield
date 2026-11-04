@@ -40,27 +40,30 @@ class ScenarioStreamGenerator:
         now = datetime.now(timezone.utc)
         curr_time = now - timedelta(minutes=volume)
 
+        n_noise = int(volume * noise_ratio)
+        n_attack = max(1, volume - n_noise)
+
         # Dispatch procedural topology synthesizer
         if scenario_id == "funnel-attack":
-            accounts, txs = self._generate_funnel(intermediaries, volume, amount_min, amount_max, curr_time, rule_triggers)
+            accounts, txs = self._generate_funnel(intermediaries, n_attack, amount_min, amount_max, curr_time, rule_triggers)
         elif scenario_id == "smurfing-split":
-            accounts, txs = self._generate_smurfing(intermediaries, volume, amount_min, amount_max, curr_time, rule_triggers)
+            accounts, txs = self._generate_smurfing(intermediaries, n_attack, amount_min, amount_max, curr_time, rule_triggers)
         elif scenario_id == "circular-transfers":
-            accounts, txs = self._generate_circular(intermediaries, volume, amount_min, amount_max, curr_time, rule_triggers)
+            accounts, txs = self._generate_circular(intermediaries, n_attack, amount_min, amount_max, curr_time, rule_triggers)
         elif scenario_id == "layering-intermediates":
-            accounts, txs = self._generate_layering(intermediaries, volume, amount_min, amount_max, curr_time, rule_triggers)
+            accounts, txs = self._generate_layering(intermediaries, n_attack, amount_min, amount_max, curr_time, rule_triggers)
         elif scenario_id == "coordinated-mule-network":
-            accounts, txs = self._generate_coordinated(intermediaries, volume, amount_min, amount_max, curr_time, rule_triggers)
+            accounts, txs = self._generate_coordinated(intermediaries, n_attack, amount_min, amount_max, curr_time, rule_triggers)
         else:
-            accounts, txs = self._generate_adaptive(intermediaries, volume, amount_min, amount_max, curr_time, rule_triggers)
+            accounts, txs = self._generate_adaptive(intermediaries, n_attack, amount_min, amount_max, curr_time, rule_triggers)
 
         transactions.extend(txs)
 
         # Inject benign noise transactions (Swiggy, groceries, peer transfers)
-        n_noise = int(volume * noise_ratio)
-        noise_accs, noise_txs = self._generate_benign_noise(n_noise, curr_time)
-        accounts.extend(noise_accs)
-        transactions.extend(noise_txs)
+        if n_noise > 0:
+            noise_accs, noise_txs = self._generate_benign_noise(n_noise, curr_time)
+            accounts.extend(noise_accs)
+            transactions.extend(noise_txs)
 
         # Shuffle chronologically
         transactions.sort(key=lambda x: x["timestamp"])
@@ -521,3 +524,4 @@ class ScenarioStreamGenerator:
             })
 
         return accs, txs
+

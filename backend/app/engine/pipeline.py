@@ -22,6 +22,7 @@ class RealTimeFraudPipeline:
         tx_data: Dict[str, Any],
         db: Optional[Session] = None,
         create_alert_if_flagged: bool = True,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Executes end-to-end real-time scoring pipeline:
@@ -34,8 +35,8 @@ class RealTimeFraudPipeline:
         """
         start_time = time.perf_counter()
 
-        # 1. Context query from DB if session provided
-        context: Dict[str, Any] = {}
+        # 1. Context query from DB if session provided, or merged with explicit context
+        ctx: Dict[str, Any] = dict(context or {})
         if db:
             try:
                 sender_vpa = tx_data.get("sender_vpa")
@@ -51,21 +52,21 @@ class RealTimeFraudPipeline:
                     )
                     .all()
                 )
-                context["sender_velocity_1h_count"] = len(recent_txs) + 1
-                context["sender_velocity_1h_amount"] = sum(t.amount for t in recent_txs) + float(tx_data.get("amount", 0.0))
+                ctx["sender_velocity_1h_count"] = len(recent_txs) + 1
+                ctx["sender_velocity_1h_amount"] = sum(t.amount for t in recent_txs) + float(tx_data.get("amount", 0.0))
 
                 # Receiver profile & graph prior
                 receiver_acc = db.query(AccountModel).filter(AccountModel.vpa == receiver_vpa).first()
                 if receiver_acc:
-                    context["receiver_incoming_count"] = receiver_acc.incoming_count
-                    context["receiver_outgoing_count"] = receiver_acc.outgoing_count
+                    ctx["receiver_incoming_count"] = receiver_acc.incoming_count
+                    ctx["receiver_outgoing_count"] = receiver_acc.outgoing_count
                     if "mule_probability" not in tx_data and receiver_acc.role in ["first_mule", "intermediate", "consolidation"]:
                         tx_data["mule_probability"] = receiver_acc.risk_score / 100.0
             except Exception as exc:
                 logger.debug(f"Velocity context lookup skipped ({exc})")
 
         # 2. Feature vector extraction
-        fvec = extract_features(tx_data, context)
+        fvec = extract_features(tx_data, ctx)
 
         # 3. Model inference
         risk_score, prob = self.model.predict(fvec)

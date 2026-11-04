@@ -58,3 +58,4 @@ class FraudDNAArchetypeSchema(BaseModel):
     reference_vector: List[float] = Field(..., description="Reference signature vector")
     typical_indicators: List[str] = Field(..., description="Known operational indicators")
     recommended_interventions: List[str] = Field(..., description="Actionable countermeasures")
+

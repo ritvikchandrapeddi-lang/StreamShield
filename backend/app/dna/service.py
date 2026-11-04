@@ -90,3 +90,4 @@ class FraudDNAService:
 
 # Global singleton instance
 fraud_dna_service = FraudDNAService()
+

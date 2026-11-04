@@ -39,3 +39,4 @@ def get_account_dna(
 ):
     """Computes DNA signature for account ego-network."""
     return fraud_dna_service.analyze_account(vpa, depth=depth)
+

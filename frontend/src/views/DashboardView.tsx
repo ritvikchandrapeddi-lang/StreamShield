@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 import { formatINR } from '../data/mockData';
 import { useStreamShield } from '../context/StreamShieldContext';
+import { apiService } from '../services/api';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
@@ -75,6 +76,32 @@ export const DashboardView: React.FC = () => {
 
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'high_risk'>('high_risk');
+  const [backendStats, setBackendStats] = useState<any>(null);
+  const [backendRings, setBackendRings] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    apiService.getDashboardStats(timeRange.toLowerCase()).then((stats) => {
+      if (isMounted && stats) setBackendStats(stats);
+    });
+    apiService.getFraudRings().then((res) => {
+      if (isMounted && res && res.rings && res.rings.length > 0) {
+        const mapped = res.rings.map((r: any) => ({
+          id: r.ring_id.replace('ring-', ''),
+          name: r.name,
+          motif: r.typology,
+          nodes: r.node_count,
+          flow: r.total_volume,
+          severity: r.risk_level as 'critical' | 'high' | 'medium',
+          urgency: r.risk_score >= 85 ? 'Immediate Action Required' : 'Quarantine Active',
+        }));
+        setBackendRings(mapped);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [timeRange]);
 
   // Filter transactions for recent table
   const displayedTxns = selectedTxFilter === 'high_risk'
@@ -82,12 +109,12 @@ export const DashboardView: React.FC = () => {
     : transactions.slice(0, 6);
 
   // Dynamic metrics from current transaction state
-  const totalMonitoredAmount = transactions.reduce((acc, t) => acc + t.amount, 148200000);
-  const interceptedAmount = transactions
-    .filter((t) => t.decision === 'blocked')
-    .reduce((acc, t) => acc + t.amount, 8420000);
+  const totalMonitoredAmount = backendStats?.monitored_volume_inr ?? transactions.reduce((acc, t) => acc + t.amount, 148200000);
+  const interceptedAmount = backendStats
+    ? (backendStats.blocked_transactions * 48500)
+    : transactions.filter((t) => t.decision === 'blocked').reduce((acc, t) => acc + t.amount, 8420000);
 
-  const activeNetworks = [
+  const activeNetworks = backendRings || [
     {
       id: 'syndicate-falcon',
       name: 'Syndicate Falcon',

@@ -10,6 +10,79 @@ const API_BASE_URL =
 const ROOT_URL =
   import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
+import { Transaction, FraudCase, AlertItem, RiskLevel, Decision } from '../types';
+
+export function mapBackendTx(raw: any): Transaction {
+  return {
+    id: raw.id,
+    senderVpa: raw.sender_vpa || raw.senderVpa || '',
+    senderName: raw.sender_name || raw.senderName || '',
+    senderBank: raw.sender_bank || raw.senderBank || '',
+    senderCity: raw.sender_city || raw.senderCity || 'Bengaluru, KA',
+    senderDeviceId: raw.sender_device_id || raw.senderDeviceId || 'DEV-UNK',
+    senderIp: raw.sender_ip || raw.senderIp || '127.0.0.1',
+    senderAccountAgeDays: raw.sender_account_age_days ?? raw.senderAccountAgeDays ?? 30,
+    receiverVpa: raw.receiver_vpa || raw.receiverVpa || '',
+    receiverName: raw.receiver_name || raw.receiverName || '',
+    receiverBank: raw.receiver_bank || raw.receiverBank || '',
+    amount: Number(raw.amount || 0),
+    timestamp: typeof raw.timestamp === 'string' ? raw.timestamp : new Date().toISOString(),
+    riskScore: Number(raw.risk_score ?? raw.riskScore ?? 0),
+    riskLevel: (raw.risk_level || raw.riskLevel || 'low') as RiskLevel,
+    decision: (raw.decision || 'approved') as Decision,
+    riskFactors: raw.risk_factors || raw.riskFactors || [],
+    latencyMs: Number(raw.latency_ms ?? raw.latencyMs ?? 5.0),
+    channel: raw.channel || 'P2P',
+    muleProbability: Number(raw.mule_probability ?? raw.muleProbability ?? 0.0),
+  };
+}
+
+export function mapBackendCase(raw: any): FraudCase {
+  return {
+    id: raw.id,
+    title: raw.title,
+    severity: raw.severity,
+    status: raw.status,
+    dateCreated: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : raw.dateCreated || '',
+    primaryAccount: raw.primary_account || raw.primaryAccount || '',
+    primaryEntityName: raw.primary_entity_name || raw.primaryEntityName || '',
+    transactionCount: raw.transaction_count ?? raw.transactionCount ?? 0,
+    totalDisputedAmount: raw.total_disputed_amount ?? raw.totalDisputedAmount ?? 0,
+    description: raw.description || '',
+    assignedAnalyst: raw.assigned_analyst || raw.assignedAnalyst || '',
+    riskIndicators: raw.risk_indicators || raw.riskIndicators || [],
+    evidenceTimeline: (raw.evidence || raw.evidenceTimeline || []).map((e: any) => ({
+      id: e.id,
+      time: e.time || (e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''),
+      title: e.title,
+      description: e.description,
+      category: e.category,
+      severity: e.severity,
+    })),
+    associatedTxIds: raw.associated_tx_ids || raw.associatedTxIds || [],
+    notes: (raw.notes || []).map((n: any) => ({
+      id: n.id,
+      author: n.author,
+      timestamp: n.created_at ? new Date(n.created_at).toLocaleString() : n.timestamp || '',
+      text: n.text,
+      badge: n.badge || 'Analyst Entry',
+    })),
+  };
+}
+
+export function mapBackendAlert(raw: any): AlertItem {
+  return {
+    id: raw.id,
+    title: raw.title,
+    vpa: raw.vpa,
+    time: raw.created_at ? new Date(raw.created_at).toLocaleTimeString() : raw.time || '',
+    severity: raw.severity,
+    txId: raw.tx_id || raw.txId,
+    caseId: raw.case_id || raw.caseId,
+    read: raw.read ?? false,
+  };
+}
+
 export interface HealthCheckResponse {
   status: 'healthy' | 'degraded';
   environment: string;
@@ -60,7 +133,7 @@ export const apiService = {
     decision?: string;
     limit?: number;
     skip?: number;
-  }) {
+  }): Promise<{ total: number; items: Transaction[] } | null> {
     try {
       const query = new URLSearchParams();
       if (params?.q) query.append('q', params.q);
@@ -71,17 +144,23 @@ export const apiService = {
 
       const res = await fetch(`${API_BASE_URL}/transactions?${query.toString()}`);
       if (!res.ok) return null;
-      return await res.json();
+      const data = await res.json();
+      const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      return {
+        total: data.total ?? rawList.length,
+        items: rawList.map(mapBackendTx),
+      };
     } catch {
       return null;
     }
   },
 
-  async getTransactionById(id: string) {
+  async getTransactionById(id: string): Promise<Transaction | null> {
     try {
       const res = await fetch(`${API_BASE_URL}/transactions/${id}`);
       if (!res.ok) return null;
-      return await res.json();
+      const data = await res.json();
+      return mapBackendTx(data);
     } catch {
       return null;
     }
@@ -104,11 +183,17 @@ export const apiService = {
   /**
    * Alerts API
    */
-  async getAlerts(unreadOnly: boolean = false) {
+  async getAlerts(unreadOnly: boolean = false): Promise<{ total: number; unread_count: number; items: AlertItem[] } | null> {
     try {
       const res = await fetch(`${API_BASE_URL}/alerts?unread_only=${unreadOnly}`);
       if (!res.ok) return null;
-      return await res.json();
+      const data = await res.json();
+      const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      return {
+        total: data.total ?? rawList.length,
+        unread_count: data.unread_count ?? rawList.filter((a: any) => !a.read).length,
+        items: rawList.map(mapBackendAlert),
+      };
     } catch {
       return null;
     }
@@ -141,7 +226,7 @@ export const apiService = {
   /**
    * Investigations Dossier API
    */
-  async getInvestigations(params?: { q?: string; severity?: string; status?: string }) {
+  async getInvestigations(params?: { q?: string; severity?: string; status?: string }): Promise<{ total: number; items: FraudCase[] } | null> {
     try {
       const query = new URLSearchParams();
       if (params?.q) query.append('q', params.q);
@@ -150,17 +235,23 @@ export const apiService = {
 
       const res = await fetch(`${API_BASE_URL}/investigations?${query.toString()}`);
       if (!res.ok) return null;
-      return await res.json();
+      const data = await res.json();
+      const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      return {
+        total: data.total ?? rawList.length,
+        items: rawList.map(mapBackendCase),
+      };
     } catch {
       return null;
     }
   },
 
-  async getInvestigationById(id: string) {
+  async getInvestigationById(id: string): Promise<FraudCase | null> {
     try {
       const res = await fetch(`${API_BASE_URL}/investigations/${id}`);
       if (!res.ok) return null;
-      return await res.json();
+      const data = await res.json();
+      return mapBackendCase(data);
     } catch {
       return null;
     }

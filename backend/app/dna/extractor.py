@@ -175,3 +175,4 @@ class FraudDNAExtractor:
             "compact_hash": compact_hash,
             "entropy_score": round(entropy, 4),
         }
+

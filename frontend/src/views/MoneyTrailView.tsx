@@ -16,12 +16,14 @@ import {
   X,
   GitFork,
   Filter,
+  Search,
 } from 'lucide-react';
 import { moneyTrailPresets, formatINR } from '../data/mockData';
 import { AccountNode, MoneyTrailPreset, AccountRole } from '../types';
 import { useStreamShield } from '../context/StreamShieldContext';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
+import { apiService } from '../services/api';
 
 type RoleFilterOption = 'all' | AccountRole;
 
@@ -52,6 +54,49 @@ export const MoneyTrailView: React.FC = () => {
     pathEdgesCount: number;
     hops: number;
   } | null>(null);
+
+  const [customVpa, setCustomVpa] = useState<string>('');
+  const [isLiveTracing, setIsLiveTracing] = useState<boolean>(false);
+  const [liveTraceResult, setLiveTraceResult] = useState<any>(null);
+
+  const handleLiveTrace = async (targetVpa?: string) => {
+    const vpaToTrace = (targetVpa || customVpa).trim();
+    if (!vpaToTrace) return;
+    setIsLiveTracing(true);
+    try {
+      const traceData = await apiService.traceMoneyTrail({
+        source_vpa: vpaToTrace,
+        max_hops: 4,
+        min_amount: 1000.0,
+      });
+      if (traceData && traceData.cytoscape_elements && traceData.cytoscape_elements.length > 0) {
+        setLiveTraceResult(traceData);
+        setSelectedNode(null);
+        setPathStats(null);
+        if (cyRef.current) {
+          cyRef.current.elements().remove();
+          cyRef.current.add(traceData.cytoscape_elements);
+          cyRef.current.layout({
+            name: 'breadthfirst',
+            directed: true,
+            padding: 40,
+            spacingFactor: 1.6,
+          }).run();
+          cyRef.current.fit(undefined, 40);
+        }
+      }
+    } catch (e) {
+      console.warn('Live trace error:', e);
+    } finally {
+      setIsLiveTracing(false);
+    }
+  };
+
+  const handleResetPresets = () => {
+    setLiveTraceResult(null);
+    setCustomVpa('');
+    handlePresetChange(activePreset);
+  };
 
   // Sync activePreset if selectedPresetId in context changes
   useEffect(() => {
@@ -336,6 +381,7 @@ export const MoneyTrailView: React.FC = () => {
   };
 
   const handlePresetChange = (preset: MoneyTrailPreset) => {
+    setLiveTraceResult(null);
     setActivePreset(preset);
     setSelectedPresetId(preset.id);
     setSelectedNode(null);
@@ -426,6 +472,51 @@ export const MoneyTrailView: React.FC = () => {
             </span>
           </div>
         </div>
+
+        {/* Live NetworkX Dynamic Money Trail Input */}
+        <div className="p-3 rounded-lg bg-canvas border border-border flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
+          <div className="flex-1 flex items-center gap-2">
+            <Search className="w-4 h-4 text-navy-400 shrink-0" />
+            <input
+              type="text"
+              value={customVpa}
+              onChange={(e) => setCustomVpa(e.target.value)}
+              placeholder="Enter arbitrary VPA to trace multi-hop flows (e.g. amit.verma91@okhdfcbank)..."
+              className="w-full bg-surface border border-border rounded-lg px-3 py-1.5 text-xs font-mono text-navy-900 focus:outline-none focus:ring-1 focus:ring-navy-800"
+              onKeyDown={(e) => e.key === 'Enter' && handleLiveTrace()}
+            />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleLiveTrace()}
+              disabled={isLiveTracing || !customVpa.trim()}
+              className="px-3.5 py-1.5 rounded-lg bg-navy-900 hover:bg-navy-800 text-white font-mono text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLiveTracing ? 'animate-spin' : ''}`} />
+              {isLiveTracing ? 'Tracing Graph...' : 'Trace Downstream Flow'}
+            </button>
+            {liveTraceResult && (
+              <button
+                onClick={handleResetPresets}
+                className="px-2.5 py-1.5 rounded-lg bg-surface hover:bg-surface-subtle text-navy-600 border border-border text-xs font-medium"
+              >
+                Reset Presets
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Live Trace Active Alert */}
+        {liveTraceResult && (
+          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between gap-2">
+            <span className="font-mono">
+              Live NetworkX Tracing Active: <strong>{liveTraceResult.source_vpa}</strong> &rarr; Traced {formatINR(liveTraceResult.total_volume_traced)} across {liveTraceResult.paths_found_count} paths to {liveTraceResult.terminal_sinks?.length || 0} terminal sinks.
+            </span>
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono font-bold">
+              LIVE GRAPH
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Role Filter Toolbar */}

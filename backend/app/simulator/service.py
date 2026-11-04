@@ -43,3 +43,4 @@ class FraudAttackSimulatorService:
 
 # Global singleton instance
 simulator_service = FraudAttackSimulatorService()
+

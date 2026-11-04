@@ -14,3 +14,4 @@ __all__ = [
     "FraudAttackSimulatorService",
     "simulator_service",
 ]
+
