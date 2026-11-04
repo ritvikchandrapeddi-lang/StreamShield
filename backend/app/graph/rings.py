@@ -275,3 +275,4 @@ class FraudRingDetector:
             "key_indicators": key_indicators,
             "disclaimer": "SYNTHETIC / DEMO DATA — StreamShield syndicate clustering",
         }
+

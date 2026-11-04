@@ -1021,3 +1021,4 @@ class TransactionGraphBuilder:
             })
 
         return elements
+

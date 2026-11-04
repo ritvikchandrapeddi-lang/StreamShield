@@ -33,6 +33,20 @@ from app.schemas.graph import (
     MoneyTrailTraceRequest,
     MoneyTrailTraceResponse,
 )
+from app.schemas.dna import (
+    DNAStrandSchema,
+    FraudDNAProfileSchema,
+    ArchetypeMatchResultSchema,
+    FraudDNAMatchResponse,
+    FraudDNAArchetypeSchema,
+)
+from app.schemas.simulator import (
+    SimulationScenarioMetaSchema,
+    SimulationRunRequest,
+    SimulatedEventSchema,
+    SimulationMetricsSchema,
+    SimulationRunResponse,
+)
 
 __all__ = [
     "AccountCreate",
@@ -69,5 +83,15 @@ __all__ = [
     "MoneyTrailHopSchema",
     "MoneyTrailTraceRequest",
     "MoneyTrailTraceResponse",
+    "DNAStrandSchema",
+    "FraudDNAProfileSchema",
+    "ArchetypeMatchResultSchema",
+    "FraudDNAMatchResponse",
+    "FraudDNAArchetypeSchema",
+    "SimulationScenarioMetaSchema",
+    "SimulationRunRequest",
+    "SimulatedEventSchema",
+    "SimulationMetricsSchema",
+    "SimulationRunResponse",
 ]
 

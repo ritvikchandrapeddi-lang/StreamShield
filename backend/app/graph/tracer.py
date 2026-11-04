@@ -219,3 +219,4 @@ class MoneyTrailTracer:
             "explainability_flags": flags,
             "disclaimer": "SYNTHETIC / DEMO DATA — StreamShield multi-hop traversal",
         }
+

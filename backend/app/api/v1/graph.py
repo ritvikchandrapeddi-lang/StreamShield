@@ -155,3 +155,4 @@ def sync_graph_endpoint(db: Session = Depends(get_db)):
         "total_edges": overview["total_edges"],
         "detected_rings_count": overview["detected_rings_count"],
     }
+

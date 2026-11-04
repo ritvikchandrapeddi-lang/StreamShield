@@ -6,6 +6,8 @@ from app.api.v1.investigations import router as investigations_router
 from app.api.v1.accounts import router as accounts_router
 from app.api.v1.fraud import router as fraud_router
 from app.api.v1.graph import router as graph_router
+from app.api.v1.dna import router as dna_router
+from app.api.v1.simulator import router as simulator_router
 from app.api.v1.seed import router as seed_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -17,6 +19,8 @@ api_v1_router.include_router(investigations_router)
 api_v1_router.include_router(accounts_router)
 api_v1_router.include_router(fraud_router)
 api_v1_router.include_router(graph_router)
+api_v1_router.include_router(dna_router)
+api_v1_router.include_router(simulator_router)
 api_v1_router.include_router(seed_router)
 
 __all__ = ["api_v1_router"]

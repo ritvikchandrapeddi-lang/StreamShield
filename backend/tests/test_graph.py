@@ -320,3 +320,4 @@ async def test_api_sync_graph():
         data = res.json()
         assert data["status"] == "synchronized"
         assert data["total_nodes"] >= 15
+

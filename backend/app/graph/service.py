@@ -278,3 +278,4 @@ class GraphIntelligenceService:
 
 # Global singleton instance
 graph_service = GraphIntelligenceService()
+

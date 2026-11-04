@@ -377,5 +377,75 @@ export const apiService = {
       return null;
     }
   },
+
+  /**
+   * Fraud DNA Pattern Recognition API
+   */
+  async getDNAArchetypes() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/dna/archetypes`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getAccountDNA(vpa: string, depth: number = 2) {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/dna/signature/${encodeURIComponent(vpa)}?depth=${depth}`
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Fraud Attack Simulator API
+   */
+  async getSimulationScenarios() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/simulator/scenarios`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getSimulationScenario(id: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/simulator/scenarios/${encodeURIComponent(id)}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async runSimulation(payload: {
+    scenario_id: string;
+    volume?: number;
+    intermediaries?: number;
+    amount_min?: number;
+    amount_max?: number;
+    complexity?: string;
+    noise_ratio?: number;
+  }) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/simulator/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
 };
 
