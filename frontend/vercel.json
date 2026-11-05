@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://streamshield-api.onrender.com/api/$1"
+      "destination": "https://streamshield-309p.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

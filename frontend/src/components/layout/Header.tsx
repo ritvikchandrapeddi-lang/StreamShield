@@ -11,6 +11,7 @@ import {
   Radio,
   ChevronDown,
   X,
+  LogOut,
 } from 'lucide-react';
 import { useStreamShield, officerProfiles } from '../../context/StreamShieldContext';
 import { AlertItem } from '../../types';
@@ -19,6 +20,7 @@ const routeTitleMap: Record<string, string> = {
   '/': 'Overview Dashboard',
   '/dashboard': 'Overview Dashboard',
   '/transactions': 'Transaction Monitor',
+  '/import': 'CSV Batch Import',
   '/money-trail': 'Money Trail Explorer',
   '/fraud-lab': 'Fraud Intelligence Lab',
   '/investigations': 'Case Investigations',
@@ -41,6 +43,7 @@ export const Header: React.FC = () => {
     resetDemoState,
     isSimulatingGlobalStream,
     setIsSimulatingGlobalStream,
+    logout,
   } = useStreamShield();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -259,10 +262,21 @@ export const Header: React.FC = () => {
                     resetDemoState();
                     setShowProfileMenu(false);
                   }}
-                  className="w-full py-1.5 px-3 rounded-md bg-canvas hover:bg-surface-subtle border border-border text-navy-700 hover:text-navy-950 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-1.5 px-3 rounded-md bg-canvas hover:bg-surface-subtle border border-border text-navy-700 hover:text-navy-950 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors mb-1.5"
                 >
                   <RotateCcw className="w-3 h-3 text-coral-500" />
                   Reset Session Demo State
+                </button>
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                    navigate('/login');
+                  }}
+                  className="w-full py-1.5 px-3 rounded-md bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <LogOut className="w-3 h-3 text-red-600" />
+                  Sign Out (Demo Session)
                 </button>
               </div>
             </div>

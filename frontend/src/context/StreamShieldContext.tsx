@@ -8,6 +8,7 @@ import {
   ToastMessage,
   AlertItem,
   OfficerProfile,
+  RiskLevel,
 } from '../types';
 import { mockTransactions, mockCases } from '../data/mockData';
 import { apiService } from '../services/api';
@@ -108,6 +109,18 @@ interface StreamShieldContextType {
   isSimulatingGlobalStream: boolean;
   setIsSimulatingGlobalStream: (active: boolean) => void;
 
+  // Backend Connection Status & Live Sync
+  isBackendConnected: boolean;
+  refreshBackendData: () => Promise<void>;
+
+  // Authentication
+  isAuthenticated: boolean;
+  login: (email?: string, officerName?: string) => void;
+  logout: () => void;
+
+  // CSV Batch Import
+  importTransactions: (newTransactions: Transaction[]) => void;
+
   // Reset
   resetDemoState: () => void;
 }
@@ -126,6 +139,10 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [activeOfficer, setActiveOfficer] = useState<OfficerProfile>(officerProfiles[0]);
   const [isSimulatingGlobalStream, setIsSimulatingGlobalStream] = useState<boolean>(true);
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('streamshield_auth') === 'true';
+  });
 
   // Toast helper
   const addToast = useCallback(
@@ -144,6 +161,37 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const login = useCallback(
+    (_email?: string, officerName?: string) => {
+      localStorage.setItem('streamshield_auth', 'true');
+      setIsAuthenticated(true);
+      addToast(
+        'Session Authenticated',
+        `Welcome, ${officerName || 'Inspector S. Roy'}. Triage console unlocked.`,
+        'success'
+      );
+    },
+    [addToast]
+  );
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('streamshield_auth');
+    setIsAuthenticated(false);
+    addToast('Logged Out', 'Demo session terminated', 'info');
+  }, [addToast]);
+
+  const importTransactions = useCallback(
+    (newItems: Transaction[]) => {
+      setTransactions((prev) => [...newItems, ...prev]);
+      addToast(
+        'Transactions Imported',
+        `Ingested ${newItems.length} transactions into monitoring stream`,
+        'success'
+      );
+    },
+    [addToast]
+  );
 
   // Update transaction decision
   const updateTransactionDecision = useCallback(
@@ -278,110 +326,172 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
     [addToast]
   );
 
+  // Refresh live backend dataset
+  const refreshBackendData = useCallback(async () => {
+    try {
+      const [health, txRes, caseRes, alertRes] = await Promise.all([
+        apiService.checkHealth().catch(() => null),
+        apiService.getTransactions({ limit: 50 }).catch(() => null),
+        apiService.getInvestigations().catch(() => null),
+        apiService.getAlerts().catch(() => null),
+      ]);
+
+      if (health && health.status === 'healthy') {
+        setIsBackendConnected(true);
+      }
+
+      if (txRes && txRes.items.length > 0) {
+        setTransactions(txRes.items);
+        setIsBackendConnected(true);
+      }
+
+      if (caseRes && caseRes.items.length > 0) {
+        setCases(caseRes.items);
+        setSelectedCaseId(caseRes.items[0].id);
+        setIsBackendConnected(true);
+      }
+
+      if (alertRes && alertRes.items.length > 0) {
+        setAlerts(alertRes.items);
+        setIsBackendConnected(true);
+      }
+    } catch (err) {
+      console.warn('Error refreshing live backend telemetry:', err);
+    }
+  }, []);
+
   // Reset entire state
   const resetDemoState = useCallback(() => {
-    setTransactions(mockTransactions);
-    setCases(mockCases);
-    setAlerts(initialAlerts);
+    apiService
+      .resetSeedData()
+      .then(() => {
+        refreshBackendData();
+      })
+      .catch(() => {
+        setTransactions(mockTransactions);
+        setCases(mockCases);
+        setAlerts(initialAlerts);
+      });
     setSelectedTxId(null);
-    setSelectedCaseId(mockCases[0].id);
     setSelectedPresetId('syndicate-falcon');
-    apiService.resetSeedData().catch(() => {});
     addToast('State Restored', 'Reset all demo fixtures and cases to baseline', 'info');
-  }, [addToast]);
+  }, [addToast, refreshBackendData]);
 
   // Initial Probe to check if FastAPI backend is online and sync live data
   useEffect(() => {
-    apiService.checkHealth().then(async (health) => {
-      if (health && health.status === 'healthy') {
-        addToast(
-          'Backend Connected',
-          `FastAPI engine & ${health.services.database.dialect.toUpperCase()} database active`,
-          'success'
-        );
-
-        // Sync live transactions from backend
-        try {
-          const txRes = await apiService.getTransactions({ limit: 50 });
-          if (txRes && txRes.items.length > 0) {
-            setTransactions(txRes.items);
-          }
-        } catch {}
-
-        // Sync live investigation cases from backend
-        try {
-          const caseRes = await apiService.getInvestigations();
-          if (caseRes && caseRes.items.length > 0) {
-            setCases(caseRes.items);
-            setSelectedCaseId(caseRes.items[0].id);
-          }
-        } catch {}
-
-        // Sync live alerts from backend
-        try {
-          const alertRes = await apiService.getAlerts();
-          if (alertRes && alertRes.items.length > 0) {
-            setAlerts(alertRes.items);
-          }
-        } catch {}
-      }
+    refreshBackendData().then(() => {
+      apiService.checkHealth().then((health) => {
+        if (health && health.status === 'healthy') {
+          addToast(
+            'Live Backend Connected',
+            `FastAPI engine & ${health.services.database.dialect.toUpperCase()} database active (${health.version})`,
+            'success'
+          );
+        }
+      });
     });
-  }, [addToast]);
+  }, [refreshBackendData, addToast]);
 
   // Periodic Simulated Transaction Ingestion Stream
   useEffect(() => {
     if (!isSimulatingGlobalStream) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       // 30% chance of a high-risk transaction arriving
       const isHighRisk = Math.random() < 0.3;
       const amount = Math.floor(Math.random() * (isHighRisk ? 95000 : 8000)) + 500;
-      const riskScore = isHighRisk
-        ? Math.floor(Math.random() * 25) + 75
-        : Math.floor(Math.random() * 20) + 2;
-
       const randomNum = Math.floor(Math.random() * 900) + 100;
-      const newTx: Transaction = {
-        id: `TXN-${Math.floor(Date.now() / 1000).toString().slice(-6)}-UPI`,
-        senderVpa: `user.sim_${randomNum}@${isHighRisk ? 'airtel' : 'oksbi'}`,
-        senderName: isHighRisk ? `Simulated Node ${randomNum}` : `User ${randomNum}`,
-        senderBank: isHighRisk ? 'Airtel Payments Bank' : 'State Bank of India',
-        senderCity: 'Bengaluru, KA',
-        senderDeviceId: `DEV-${randomNum}-AUTO`,
-        senderIp: `103.24.${(randomNum % 250)}.${(randomNum % 200)}`,
-        senderAccountAgeDays: isHighRisk ? 4 : 420,
-        receiverVpa: isHighRisk ? `mule_drop_${randomNum % 10}@paytm` : `merchant_${randomNum % 20}@hdfcbank`,
-        receiverName: isHighRisk ? 'Suspicious Transit Hub' : 'Verified Merchant Scan',
-        receiverBank: isHighRisk ? 'Paytm Payments Bank' : 'HDFC Bank',
-        amount,
-        timestamp: new Date().toISOString(),
-        riskScore,
-        riskLevel: riskScore >= 90 ? 'critical' : riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low',
-        decision: riskScore >= 85 ? 'blocked' : riskScore >= 70 ? 'review' : 'approved',
-        riskFactors: isHighRisk
-          ? ['Automated stream heuristic: Rapid fan-in velocity detected', 'Synthetic pattern match']
-          : ['Legitimate consumer flow baseline verified'],
-        latencyMs: Number((Math.random() * 8 + 3).toFixed(1)),
-        channel: isHighRisk ? 'COLLECT' : 'P2M',
-        muleProbability: isHighRisk ? 0.88 : 0.02,
-      };
+      const senderVpa = `user.sim_${randomNum}@${isHighRisk ? 'airtel' : 'oksbi'}`;
+      const receiverVpa = isHighRisk ? `mule_drop_${randomNum % 10}@paytm` : `merchant_${randomNum % 20}@hdfcbank`;
 
-      setTransactions((prev) => [newTx, ...prev.slice(0, 49)]);
+      let scoredTx: Transaction | null = null;
+      try {
+        const scoreRes = await apiService.scoreTransaction({
+          amount,
+          sender_vpa: senderVpa,
+          sender_name: isHighRisk ? `Simulated Node ${randomNum}` : `User ${randomNum}`,
+          sender_bank: isHighRisk ? 'Airtel Payments Bank' : 'State Bank of India',
+          sender_city: 'Bengaluru, KA',
+          sender_device_id: `DEV-${randomNum}-AUTO`,
+          sender_account_age_days: isHighRisk ? 4 : 420,
+          receiver_vpa: receiverVpa,
+          receiver_name: isHighRisk ? 'Suspicious Transit Hub' : 'Verified Merchant Scan',
+          receiver_bank: isHighRisk ? 'Paytm Payments Bank' : 'HDFC Bank',
+          channel: isHighRisk ? 'COLLECT' : 'P2M',
+          mule_probability: isHighRisk ? 0.88 : 0.02,
+        });
 
-      // If high risk, add to alerts
-      if (isHighRisk) {
+        if (scoreRes && scoreRes.risk_score !== undefined) {
+          scoredTx = {
+            id: `TXN-${Math.floor(Date.now() / 1000).toString().slice(-6)}-UPI`,
+            senderVpa,
+            senderName: isHighRisk ? `Simulated Node ${randomNum}` : `User ${randomNum}`,
+            senderBank: isHighRisk ? 'Airtel Payments Bank' : 'State Bank of India',
+            senderCity: 'Bengaluru, KA',
+            senderDeviceId: `DEV-${randomNum}-AUTO`,
+            senderIp: `103.24.${randomNum % 250}.${randomNum % 200}`,
+            senderAccountAgeDays: isHighRisk ? 4 : 420,
+            receiverVpa,
+            receiverName: isHighRisk ? 'Suspicious Transit Hub' : 'Verified Merchant Scan',
+            receiverBank: isHighRisk ? 'Paytm Payments Bank' : 'HDFC Bank',
+            amount,
+            timestamp: new Date().toISOString(),
+            riskScore: scoreRes.risk_score,
+            riskLevel: scoreRes.risk_level as RiskLevel,
+            decision: scoreRes.decision as Decision,
+            riskFactors: scoreRes.risk_factors || [],
+            latencyMs: Number(scoreRes.latency_ms ?? 3.5),
+            channel: isHighRisk ? 'COLLECT' : 'P2M',
+            muleProbability: Number(scoreRes.mule_probability ?? (isHighRisk ? 0.88 : 0.02)),
+          };
+        }
+      } catch {}
+
+      if (!scoredTx) {
+        const fallbackRisk = isHighRisk
+          ? Math.floor(Math.random() * 25) + 75
+          : Math.floor(Math.random() * 20) + 2;
+        scoredTx = {
+          id: `TXN-${Math.floor(Date.now() / 1000).toString().slice(-6)}-UPI`,
+          senderVpa,
+          senderName: isHighRisk ? `Simulated Node ${randomNum}` : `User ${randomNum}`,
+          senderBank: isHighRisk ? 'Airtel Payments Bank' : 'State Bank of India',
+          senderCity: 'Bengaluru, KA',
+          senderDeviceId: `DEV-${randomNum}-AUTO`,
+          senderIp: `103.24.${randomNum % 250}.${randomNum % 200}`,
+          senderAccountAgeDays: isHighRisk ? 4 : 420,
+          receiverVpa,
+          receiverName: isHighRisk ? 'Suspicious Transit Hub' : 'Verified Merchant Scan',
+          receiverBank: isHighRisk ? 'Paytm Payments Bank' : 'HDFC Bank',
+          amount,
+          timestamp: new Date().toISOString(),
+          riskScore: fallbackRisk,
+          riskLevel: fallbackRisk >= 90 ? 'critical' : fallbackRisk >= 70 ? 'high' : fallbackRisk >= 40 ? 'medium' : 'low',
+          decision: fallbackRisk >= 85 ? 'blocked' : fallbackRisk >= 70 ? 'review' : 'approved',
+          riskFactors: isHighRisk
+            ? ['Automated stream heuristic: Rapid fan-in velocity detected', 'Synthetic pattern match']
+            : ['Legitimate consumer flow baseline verified'],
+          latencyMs: Number((Math.random() * 8 + 3).toFixed(1)),
+          channel: isHighRisk ? 'COLLECT' : 'P2M',
+          muleProbability: isHighRisk ? 0.88 : 0.02,
+        };
+      }
+
+      setTransactions((prev) => [scoredTx!, ...prev.slice(0, 49)]);
+
+      if (scoredTx.riskScore >= 70) {
         const newAlert: AlertItem = {
           id: `alt-auto-${Date.now()}`,
-          title: `Stream Alert: Risk Score ${riskScore}`,
-          vpa: newTx.senderVpa,
+          title: `Stream Alert: Risk Score ${scoredTx.riskScore}`,
+          vpa: scoredTx.senderVpa,
           time: 'Just now',
-          severity: newTx.riskLevel,
-          txId: newTx.id,
+          severity: scoredTx.riskLevel,
+          txId: scoredTx.id,
           read: false,
         };
         setAlerts((prev) => [newAlert, ...prev.slice(0, 7)]);
       }
-    }, 10000); // Trigger every 10 seconds
+    }, 12000); // Trigger every 12 seconds
 
     return () => clearInterval(interval);
   }, [isSimulatingGlobalStream]);
@@ -412,6 +522,12 @@ export const StreamShieldProvider: React.FC<{ children: React.ReactNode }> = ({ 
         switchOfficer,
         isSimulatingGlobalStream,
         setIsSimulatingGlobalStream,
+        isBackendConnected,
+        refreshBackendData,
+        isAuthenticated,
+        login,
+        logout,
+        importTransactions,
         resetDemoState,
       }}
     >

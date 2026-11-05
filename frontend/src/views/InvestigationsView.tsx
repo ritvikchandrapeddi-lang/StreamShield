@@ -20,6 +20,7 @@ import {
 import { useStreamShield } from '../context/StreamShieldContext';
 import { CaseStatus } from '../types';
 import { formatINR, mockTransactions } from '../data/mockData';
+import { apiService } from '../services/api';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SyntheticBanner } from '../components/ui/SyntheticBanner';
@@ -146,22 +147,36 @@ export const InvestigationsView: React.FC = () => {
   };
 
   // Export LEA Bundle
-  const handleExportBundle = () => {
-    const exportBundle = {
-      caseId: currentCase.id,
-      title: currentCase.title,
-      severity: currentCase.severity,
-      totalDisputedAmount: currentCase.totalDisputedAmount,
-      primaryAccount: currentCase.primaryAccount,
-      evidenceTimeline: currentCase.evidenceTimeline,
-      associatedTxIds: currentCase.associatedTxIds,
-      docketNotes: currentCase.notes,
-      exportedBy: activeOfficer.name,
-      exportTimestamp: new Date().toISOString(),
-      statutoryReference: 'Section 91 CrPC / CERT-In Rule 12',
-    };
+  const handleExportBundle = async () => {
+    let exportData: any = null;
+    try {
+      const backendBundle = await apiService.exportLeaBundle(currentCase.id);
+      if (backendBundle) {
+        exportData = {
+          ...backendBundle,
+          exportedBy: activeOfficer.name,
+          exportTimestamp: new Date().toISOString(),
+        };
+      }
+    } catch {}
 
-    const jsonStr = JSON.stringify(exportBundle, null, 2);
+    if (!exportData) {
+      exportData = {
+        caseId: currentCase.id,
+        title: currentCase.title,
+        severity: currentCase.severity,
+        totalDisputedAmount: currentCase.totalDisputedAmount,
+        primaryAccount: currentCase.primaryAccount,
+        evidenceTimeline: currentCase.evidenceTimeline,
+        associatedTxIds: currentCase.associatedTxIds,
+        docketNotes: currentCase.notes,
+        exportedBy: activeOfficer.name,
+        exportTimestamp: new Date().toISOString(),
+        statutoryReference: 'Section 91 CrPC / CERT-In Rule 12',
+      };
+    }
+
+    const jsonStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

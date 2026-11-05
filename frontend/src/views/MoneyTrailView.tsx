@@ -58,6 +58,19 @@ export const MoneyTrailView: React.FC = () => {
   const [customVpa, setCustomVpa] = useState<string>('');
   const [isLiveTracing, setIsLiveTracing] = useState<boolean>(false);
   const [liveTraceResult, setLiveTraceResult] = useState<any>(null);
+  const [graphOverview, setGraphOverview] = useState<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    apiService.getGraphOverview().then((res) => {
+      if (isMounted && res) {
+        setGraphOverview(res);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleLiveTrace = async (targetVpa?: string) => {
     const vpaToTrace = (targetVpa || customVpa).trim();
@@ -505,6 +518,27 @@ export const MoneyTrailView: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Quick Suggestion Pills from Backend Graph Overview */}
+        {graphOverview?.top_mules && graphOverview.top_mules.length > 0 && !liveTraceResult && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] font-mono">
+            <span className="text-navy-500 font-sans font-medium">Quick Trace:</span>
+            {graphOverview.top_mules.slice(0, 4).map((m: any) => (
+              <button
+                key={m.vpa}
+                type="button"
+                onClick={() => {
+                  setCustomVpa(m.vpa);
+                  handleLiveTrace(m.vpa);
+                }}
+                className="px-2 py-0.5 rounded bg-surface hover:bg-coral-50 border border-border hover:border-coral-300 text-navy-700 hover:text-coral-700 transition-colors"
+                title={`Mule Score: ${m.mule_score} (${m.role})`}
+              >
+                {m.vpa}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Live Trace Active Alert */}
         {liveTraceResult && (

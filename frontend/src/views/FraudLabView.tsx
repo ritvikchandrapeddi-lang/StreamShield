@@ -28,9 +28,38 @@ interface SimulatedEvent {
 }
 
 export const FraudLabView: React.FC = () => {
+  const [availableScenarios, setAvailableScenarios] = useState<SimulationScenario[]>(
+    mockSimulationScenarios
+  );
   const [selectedScenario, setSelectedScenario] = useState<SimulationScenario>(
     mockSimulationScenarios[0]
   );
+
+  // Sync simulation scenarios with live backend API on mount
+  useEffect(() => {
+    let isMounted = true;
+    apiService.getSimulationScenarios().then((scenarios) => {
+      if (isMounted && Array.isArray(scenarios) && scenarios.length > 0) {
+        const mapped: SimulationScenario[] = scenarios.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          complexity: s.complexity,
+          defaultVolume: s.default_volume ?? s.defaultVolume ?? 100,
+          defaultIntermediaries: s.default_intermediaries ?? s.defaultIntermediaries ?? 6,
+          defaultAmountMin: s.default_amount_min ?? s.defaultAmountMin ?? 10000,
+          defaultAmountMax: s.default_amount_max ?? s.defaultAmountMax ?? 100000,
+          typologySummary: s.typology_summary ?? s.typologySummary ?? '',
+          detectionExplanation: s.detection_explanation ?? s.detectionExplanation ?? '',
+          keyRuleTriggers: s.key_rule_triggers ?? s.keyRuleTriggers ?? [],
+        }));
+        setAvailableScenarios(mapped);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Simulation parameters
   const [volume, setVolume] = useState<number>(selectedScenario.defaultVolume);
@@ -393,7 +422,7 @@ export const FraudLabView: React.FC = () => {
             Select Adversarial Scenario Typology:
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {mockSimulationScenarios.map((sc) => (
+            {availableScenarios.map((sc) => (
               <button
                 key={sc.id}
                 onClick={() => handleSelectScenario(sc)}

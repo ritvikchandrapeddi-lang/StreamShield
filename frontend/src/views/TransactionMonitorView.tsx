@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   ArrowUpDown,
@@ -14,6 +15,7 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { formatINR } from '../data/mockData';
 import { Transaction, RiskLevel, Decision } from '../types';
@@ -27,8 +29,15 @@ type SortOrder = 'asc' | 'desc';
 type TimeFilterOption = 'all' | '1h' | '24h' | '7d';
 
 export const TransactionMonitorView: React.FC = () => {
-  const { transactions, updateTransactionDecision, selectedTxId, setSelectedTxId } =
-    useStreamShield();
+  const navigate = useNavigate();
+  const {
+    transactions,
+    updateTransactionDecision,
+    selectedTxId,
+    setSelectedTxId,
+    refreshBackendData,
+    isBackendConnected,
+  } = useStreamShield();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState<string>('all');
@@ -183,6 +192,23 @@ export const TransactionMonitorView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 text-xs font-mono">
+          <button
+            onClick={() => navigate('/import')}
+            className="px-2.5 py-1.5 rounded-lg border border-border bg-surface hover:bg-surface-subtle text-navy-700 flex items-center gap-1.5 transition-colors"
+            title="Import batch transactions from CSV"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-navy-500" />
+            <span>Import CSV</span>
+          </button>
+          <button
+            onClick={() => refreshBackendData()}
+            className="px-2.5 py-1.5 rounded-lg border border-border bg-surface hover:bg-surface-subtle text-navy-700 flex items-center gap-1.5 transition-colors"
+            title={isBackendConnected ? 'Connected to live Render backend' : 'Refresh transactions from backend'}
+          >
+            {isBackendConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+            <RotateCcw className="w-3.5 h-3.5 text-navy-500" />
+            <span>Sync Live API</span>
+          </button>
           <span className="bg-surface px-3 py-1.5 rounded-lg border border-border text-navy-700">
             Total Monitored: <strong className="text-navy-900">{transactions.length} Transactions</strong>
           </span>

@@ -9,6 +9,7 @@ import {
   LineChart,
   Shield,
   Zap,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useStreamShield } from '../../context/StreamShieldContext';
 
@@ -27,6 +28,13 @@ export const Sidebar: React.FC = () => {
       icon: Radio,
       badge: `${highRiskCount} Alerts`,
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    },
+    {
+      name: 'Batch CSV Import',
+      to: '/import',
+      icon: FileSpreadsheet,
+      badge: 'Batch',
+      badgeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     },
     {
       name: 'Money Trail Explorer',

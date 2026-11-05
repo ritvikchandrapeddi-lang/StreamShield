@@ -5,16 +5,25 @@
  * Falls back gracefully if backend is unreachable during offline/demo mode.
  */
 
-const rawEnvUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
-const API_BASE_URL = rawEnvUrl
-  ? rawEnvUrl.endsWith('/api/v1')
-    ? rawEnvUrl
-    : `${rawEnvUrl}/api/v1`
-  : 'http://localhost:8000/api/v1';
+const PROD_BACKEND_URL = 'https://streamshield-309p.onrender.com';
 
-const ROOT_URL = (import.meta.env.VITE_BACKEND_URL || '')
-  .trim()
-  .replace(/\/+$/, '') || (rawEnvUrl ? rawEnvUrl.replace(/\/api\/v1$/, '') : 'http://localhost:8000');
+const rawEnvUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const rawRootUrl = (import.meta.env.VITE_BACKEND_URL || '').trim().replace(/\/+$/, '');
+
+// Detect whether running in production build or deployed on remote domain (Render/Vercel)
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const defaultBase = (import.meta.env.PROD || (isBrowser && !isLocalhost))
+  ? PROD_BACKEND_URL
+  : 'http://localhost:8000';
+
+const resolvedBase = rawEnvUrl || defaultBase;
+
+export const API_BASE_URL = resolvedBase.endsWith('/api/v1')
+  ? resolvedBase
+  : `${resolvedBase}/api/v1`;
+
+export const ROOT_URL = rawRootUrl || (rawEnvUrl ? rawEnvUrl.replace(/\/api\/v1$/, '') : resolvedBase.replace(/\/api\/v1$/, ''));
 
 import { Transaction, FraudCase, AlertItem, RiskLevel, Decision } from '../types';
 
@@ -49,7 +58,7 @@ export function mapBackendCase(raw: any): FraudCase {
     title: raw.title,
     severity: raw.severity,
     status: raw.status,
-    dateCreated: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : raw.dateCreated || '',
+    dateCreated: raw.date_created || (raw.created_at ? new Date(raw.created_at).toLocaleDateString() : raw.dateCreated || ''),
     primaryAccount: raw.primary_account || raw.primaryAccount || '',
     primaryEntityName: raw.primary_entity_name || raw.primaryEntityName || '',
     transactionCount: raw.transaction_count ?? raw.transactionCount ?? 0,
@@ -69,7 +78,7 @@ export function mapBackendCase(raw: any): FraudCase {
     notes: (raw.notes || []).map((n: any) => ({
       id: n.id,
       author: n.author,
-      timestamp: n.created_at ? new Date(n.created_at).toLocaleString() : n.timestamp || '',
+      timestamp: n.timestamp || (n.created_at ? new Date(n.created_at).toLocaleString() : ''),
       text: n.text,
       badge: n.badge || 'Analyst Entry',
     })),
@@ -81,7 +90,7 @@ export function mapBackendAlert(raw: any): AlertItem {
     id: raw.id,
     title: raw.title,
     vpa: raw.vpa,
-    time: raw.created_at ? new Date(raw.created_at).toLocaleTimeString() : raw.time || '',
+    time: raw.time_label || raw.time || (raw.created_at ? new Date(raw.created_at).toLocaleTimeString() : ''),
     severity: raw.severity,
     txId: raw.tx_id || raw.txId,
     caseId: raw.case_id || raw.caseId,
@@ -110,10 +119,18 @@ export const apiService = {
   async checkHealth(): Promise<HealthCheckResponse | null> {
     try {
       const res = await fetch(`${ROOT_URL}/health`, { method: 'GET' });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
+      if (res.ok) return await res.json();
+      const resV1 = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+      if (resV1.ok) return await resV1.json();
       return null;
+    } catch {
+      try {
+        const resV1 = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+        if (resV1.ok) return await resV1.json();
+        return null;
+      } catch {
+        return null;
+      }
     }
   },
 
@@ -151,7 +168,13 @@ export const apiService = {
       const res = await fetch(`${API_BASE_URL}/transactions?${query.toString()}`);
       if (!res.ok) return null;
       const data = await res.json();
-      const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      const rawList = Array.isArray(data.transactions)
+        ? data.transactions
+        : Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : [];
       return {
         total: data.total ?? rawList.length,
         items: rawList.map(mapBackendTx),
@@ -194,7 +217,13 @@ export const apiService = {
       const res = await fetch(`${API_BASE_URL}/alerts?unread_only=${unreadOnly}`);
       if (!res.ok) return null;
       const data = await res.json();
-      const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      const rawList = Array.isArray(data.alerts)
+        ? data.alerts
+        : Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : [];
       return {
         total: data.total ?? rawList.length,
         unread_count: data.unread_count ?? rawList.filter((a: any) => !a.read).length,
@@ -242,7 +271,13 @@ export const apiService = {
       const res = await fetch(`${API_BASE_URL}/investigations?${query.toString()}`);
       if (!res.ok) return null;
       const data = await res.json();
-      const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      const rawList = Array.isArray(data.cases)
+        ? data.cases
+        : Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : [];
       return {
         total: data.total ?? rawList.length,
         items: rawList.map(mapBackendCase),

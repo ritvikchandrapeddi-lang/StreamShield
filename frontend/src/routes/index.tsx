@@ -1,13 +1,19 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { LoginView } from '@/views/LoginView';
 import { DashboardView } from '@/views/DashboardView';
 import { TransactionMonitorView } from '@/views/TransactionMonitorView';
+import { TransactionImportView } from '@/views/TransactionImportView';
 import { MoneyTrailView } from '@/views/MoneyTrailView';
 import { FraudLabView } from '@/views/FraudLabView';
 import { InvestigationsView } from '@/views/InvestigationsView';
 import { ModelPerformanceView } from '@/views/ModelPerformanceView';
 
 export const router = createBrowserRouter([
+  {
+    path: '/login',
+    element: <LoginView />,
+  },
   {
     path: '/',
     element: <AppLayout />,
@@ -23,6 +29,10 @@ export const router = createBrowserRouter([
       {
         path: 'transactions',
         element: <TransactionMonitorView />,
+      },
+      {
+        path: 'import',
+        element: <TransactionImportView />,
       },
       {
         path: 'money-trail',
