@@ -18,3 +18,4 @@ services:
         value: "http://localhost:5173,https://streamshield.vercel.app"
       - key: AUTO_SEED
         value: true
+

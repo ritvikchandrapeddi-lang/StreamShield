@@ -1,0 +1,31 @@
+# Git and documentation
+.git/
+.github/
+.gitignore
+README.md
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# SQLite databases (auto-created and seeded in container if needed)
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend source and build artifacts (built separately on Vercel)
+frontend/
+
+# Local logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+

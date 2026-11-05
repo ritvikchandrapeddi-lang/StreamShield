@@ -1,5 +1,13 @@
+import os
+import sys
 import logging
 from contextlib import asynccontextmanager
+
+# Ensure backend directory is in sys.path regardless of execution working directory
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,10 +47,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Proper CORS configuration for local frontend development
+# Proper CORS configuration for local frontend development and production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

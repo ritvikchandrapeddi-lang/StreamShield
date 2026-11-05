@@ -5,10 +5,16 @@
  * Falls back gracefully if backend is unreachable during offline/demo mode.
  */
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-const ROOT_URL =
-  import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const rawEnvUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const API_BASE_URL = rawEnvUrl
+  ? rawEnvUrl.endsWith('/api/v1')
+    ? rawEnvUrl
+    : `${rawEnvUrl}/api/v1`
+  : 'http://localhost:8000/api/v1';
+
+const ROOT_URL = (import.meta.env.VITE_BACKEND_URL || '')
+  .trim()
+  .replace(/\/+$/, '') || (rawEnvUrl ? rawEnvUrl.replace(/\/api\/v1$/, '') : 'http://localhost:8000');
 
 import { Transaction, FraudCase, AlertItem, RiskLevel, Decision } from '../types';
 
