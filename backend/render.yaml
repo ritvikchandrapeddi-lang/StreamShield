@@ -15,7 +15,7 @@ services:
       - key: DATABASE_URL
         value: sqlite:///./streamshield.db
       - key: CORS_ORIGINS
-        value: "http://localhost:5173,https://streamshield.vercel.app"
+        value: "https://streamshield-frontend.onrender.com,http://localhost:5173,https://streamshield.vercel.app"
       - key: AUTO_SEED
         value: true
 

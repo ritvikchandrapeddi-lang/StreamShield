@@ -24,22 +24,34 @@ class Settings(BaseSettings):
 
     # Allowed CORS origins
     CORS_ORIGINS: Union[List[str], str] = [
+        "https://streamshield-frontend.onrender.com",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://streamshield.vercel.app",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",") if i.strip()]
+            origins = [i.strip() for i in v.split(",") if i.strip()]
+            if "https://streamshield-frontend.onrender.com" not in origins and "*" not in origins:
+                origins.append("https://streamshield-frontend.onrender.com")
+            return origins
         elif isinstance(v, list):
-            return v
+            origins = list(v)
+            if "https://streamshield-frontend.onrender.com" not in origins and "*" not in origins:
+                origins.append("https://streamshield-frontend.onrender.com")
+            return origins
         return [
+            "https://streamshield-frontend.onrender.com",
             "http://localhost:5173",
             "http://127.0.0.1:5173",
             "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://streamshield.vercel.app",
         ]
 
     model_config = SettingsConfigDict(

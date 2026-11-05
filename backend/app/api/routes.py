@@ -59,3 +59,13 @@ async def health_check(db: Session = Depends(get_db)):
             },
         },
     }
+
+
+# Register /api/v1/health alias for frontend clients prefixing all calls with /api/v1
+api_v1_router.add_api_route(
+    "/health",
+    health_check,
+    methods=["GET"],
+    tags=["Health"],
+    summary="System Health & Database Probe (v1 alias)",
+)

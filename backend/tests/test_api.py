@@ -46,6 +46,44 @@ async def test_health_check_endpoint(client: httpx.AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_health_v1_alias_endpoint(client: httpx.AsyncClient):
+    """Verify /api/v1/health alias endpoint returns healthy status for prefixed clients."""
+    response = await client.get("/api/v1/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert data["services"]["api_server"] == "online"
+
+
+@pytest.mark.anyio
+async def test_cors_render_frontend(client: httpx.AsyncClient):
+    """Verify CORS preflight and actual requests from deployed Render frontend."""
+    origin = "https://streamshield-frontend.onrender.com"
+
+    # Preflight OPTIONS
+    res_opts = await client.options(
+        "/api/v1/dashboard/stats?window=24h",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert res_opts.status_code == 200
+    assert res_opts.headers.get("access-control-allow-origin") == origin
+    assert res_opts.headers.get("access-control-allow-credentials") == "true"
+
+    # Actual GET
+    res_get = await client.get(
+        "/api/v1/dashboard/stats?window=24h",
+        headers={"Origin": origin},
+    )
+    assert res_get.status_code == 200
+    assert res_get.headers.get("access-control-allow-origin") == origin
+    assert res_get.headers.get("access-control-allow-credentials") == "true"
+
+
+@pytest.mark.anyio
 async def test_dashboard_stats(client: httpx.AsyncClient):
     response = await client.get("/api/v1/dashboard/stats?window=24h")
     assert response.status_code == 200
